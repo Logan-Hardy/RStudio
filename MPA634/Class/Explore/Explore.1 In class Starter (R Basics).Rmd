@@ -1,0 +1,203 @@
+---
+title: "Explore.1 In class starter"
+author: "Logan Hardy"
+date: "01/06/2022"
+output:
+  html_document: default
+editor_options: 
+  markdown: 
+    wrap: sentence
+---
+
+# Update your name and the date at the top of this document.
+
+# Introduction to RStudio
+
+Copy and paste the following code lines into the console one at a time.
+
+random_number <- 3 
+random_number + random_number 
+plot(1:5)
+
+Look at the four quadrants in RStudio.
+
+Q: How do you change the size of the panes?
+A: Drag edges to desired size
+
+Q: What is the purpose of each pane?
+A: R script file, command console, environment/history/tutorial, outputs
+
+# R Markdown vs. Script
+
+Copy and paste the code lines from above into the code chunk below and run them.
+
+This is an R Markdown File (RMD or .rmd).
+Open a script (.r) and see the difference.
+
+```{r}
+# {r, echo=FALSE, eval=FALSE, message=FALSE, include=FALSE}
+random_number <- 3
+random_number + random_number 
+plot(1:5)
+```
+
+Q: What are 3 differences between Markdown Files and scripts?
+A:
+
+# Objects, Vectors, and Lists
+
+You can create both numerical objects and text objects.
+Create one of each below.
+
+```{r}
+words <- "garlic bread"
+number <- 24
+```
+
+Saved text is usually referred to as a "string" in R.
+Can you perform mathematical operations on strings?
+Try this in the console.
+
+Create two vectors, one numerical and one text.
+Print them out.
+
+```{r}
+numbers <- c(2:24)
+#numbers <- c(3,1,6)
+numbers
+
+(strings <- c("hat", "lemon", "3"))
+
+
+```
+
+Create a blank vector
+
+```{r}
+blank <- c()
+nas <- c(NA)
+
+```
+
+Create a vector and print it out at the same time.
+
+```{r}
+(numbers2 <- c(1:10))
+```
+
+Print out the second value in your string vector.
+
+```{r}
+strings[2]
+```
+
+Combine two vectors together.
+
+```{r}
+strings3 <- c("hi", "family")
+(strings4 <- c(strings, strings3))
+
+boolean1 <- c(TRUE, FALSE, TRUE)
+TRUE + TRUE
+```
+
+Make a list.
+
+```{r}
+list1 <- list(TRUE, 2, "Sandwich")
+```
+
+Make a list within a list.
+Click on it in the global environment.
+
+```{r}
+list2 <- list(list1, "nice", "class")
+```
+
+Access a value in the nested list with its index
+
+```{r}
+list1[3]
+list2[[1]][3]
+```
+
+Make a named list
+
+```{r}
+list3 <- list("num1" = 23, "num2" = 1, "num3" = 2)
+list3
+```
+
+Access part of a list by its name
+
+```{r}
+list3$num2
+
+list3[["num2"]]
+list3[[2]]
+```
+
+Q: What is the difference between a vector and a list?
+A: vectors are one dimensional and one datatype.
+Lists can be multidimensional and can store multiple datatypes
+
+# Datasets
+
+Mtcars is a dataset that is always loaded into R.
+Run the code below to see it.
+
+```{r}
+mtcars
+```
+
+Q: What is the structure of a dataset?
+A: A named list of vectors
+
+Print out the first column of the mtcar dataset by its index.
+
+```{r}
+mtcars[1]
+```
+
+Print out the first column of the mtcars dataset by its name.
+
+```{r}
+mtcars$mpg
+```
+
+Save the first value of that vector as an object
+
+```{r}
+first_value <- mtcars$mpg[1]
+first_value
+```
+
+Make a vector called "name" that stores the names of your family members.
+
+```{r}
+name <- c("Logan", "Katelyn", "Thomas", "Jori", "Olivia")
+name
+```
+
+Make a vector called "age" that stores the ages of those family members in the same order.
+
+```{r}
+(age <- c(24, 25, 2, 1, 1))
+```
+
+Make a dataset called "family" that stores these two columns.
+Print it out.
+
+```{r}
+family <- data.frame(name, age)
+family
+```
+
+Find the mean of the ages of your family
+
+```{r}
+meanAge <- mean(family$age)
+meanAge
+```
+
+Knit this document and look at the output.

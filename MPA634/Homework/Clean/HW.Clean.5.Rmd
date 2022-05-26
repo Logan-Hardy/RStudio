@@ -1,0 +1,164 @@
+---
+title: "HW.Clean.5"
+author: "Logan Hardy"
+date: "2/28/2022"
+output: html_document
+---
+
+25 points (20 for this assignment, 5 for being on time)
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, 
+                      message = FALSE, 
+                      warning = FALSE)
+library(tidyverse)
+library(lubridate)
+library(ggthemes)
+```
+
+
+# Import (2 points)
+Import the executive comp dataset and the Stolen_Vehicles_2012_Salt_Lake_City dataset with readr. Import all date time columns in a date-time format. Strings should be factors. 
+```{r}
+exec_comp_main <- read_csv("../Data/exec_comp_main.csv", col_types = cols(Formation.yr = col_datetime(format = "%Y"))) %>% mutate_if(is.character, as.factor)
+
+Stolen_Vehicles_2012_Salt_Lake_City <- read_csv("../Data/Stolen_Vehicles_2012_Salt_Lake_City.csv", col_types = cols(`REPORT DATE` = col_datetime(format = "%m/%d/%Y %I:%M:%S %p"), `OCC DATE` = col_datetime(format = "%m/%d/%Y %I:%M:%S %p"))) %>% mutate_if(is.character, as.factor)
+
+```
+
+# Outliers 
+
+## Finding outliers with summary (3 points)
+*In the console* run a summary of the exec_comp_main dataset. 
+
+Q: Name at least 3 columns that you think have outliers and describe why you think so.  
+A: Revenue - mean is significantly larger than median and 3rd quartile (indicating its right skewed and probably has outliers)
+Expenses - mean is significantly larger than median and 3rd quartile (indicating its right skewed and probably has outliers)
+Liabilities - mean is significantly larger than median and 3rd quartile (indicating its right skewed and probably has outliers)
+Assets - mean is significantly larger than median and 3rd quartile (indicating its right skewed and probably has outliers)
+Reportable.comp - Max is significantly further away from mean/median than min
+Health.and.benefits - Mean is significantly larger than median and 3rd quartile (indicating its right skewed and probably has outliers) 
+
+
+
+## Finding outliers with visualizations (2 points)
+Make a histogram and boxplot of the Liabilities column of the exec_comp_main dataset.
+```{r}
+theme_new <-  theme_fivethirtyeight(base_size=12#,base_family="Open Sans"
+                                    ) %+replace% theme(panel.grid.major.y = element_line(colour = "grey80", size = 0.25),  panel.grid.major.x = element_blank(), panel.background = element_rect(fill = "white"), plot.background = element_rect(fill = "white"), legend.background = element_rect(fill = "white")) 
+
+exec_comp_main %>% ggplot(aes(x = Liabilities)) + geom_histogram(fill = "#afd7db", bins = 10) +
+        labs(title = "Histogram of Liabilities", 
+            subtitle = "Notice how the max greatly pulls the graph to the right and there should be \n10 bins, but the other counts are too small to see", 
+            y = "Count", 
+            x = "Liabilities") +
+        theme_new #+ theme(axis.title = element_text(size = 10, color = "grey40"))
+
+exec_comp_main %>% ggplot(aes(x = Liabilities)) + 
+        geom_boxplot(fill = "#afd7db") +
+        labs(title = "Boxplot of Liabilities", 
+            subtitle = "Note how the box can't be seen because of outliers", 
+            x = "Liabilities") +
+        theme_new #+ theme(axis.title = element_text(size = 10, color = "grey40"))
+
+```
+
+Q: Based on these graphs, why or why not do you think there are outliers in this variable?  
+A: Based on these graphs, I think that there are outliers because neither graph fully shows.  
+
+## Using the Boxplot function to find outliers (3 points)
+Use the boxplot function to find the index of outliers in the Expenses column. Output the head() of a subset of just rows with outliers in that variable. Then output the head() of a subset that has a new column that says whether there are outliers in that expenses column. 
+```{r}
+boxplot_outliers <- boxplot.stats(exec_comp_main$Expenses)$out
+outlier_indexes <- which(exec_comp_main$Expenses %in% c(boxplot_outliers))
+
+# dataset of just outliers. 
+exec_comp_main[outlier_indexes, ] %>% head()
+
+# subset that has a new column that says whether there are outliers in that expenses column. 
+exec_comp_main %>% 
+  mutate(ExpensesOutlier = ifelse(Expenses %in% c(boxplot_outliers), TRUE, FALSE)) %>% head()
+
+```
+
+
+Q: How many rows have an outlier in the expenses column according to the boxplot function?  
+A: 7,021
+
+## Using percentile to replace outliers with NAs (3 points)
+Make a copy of the exec_comp_main dataset. Create a cut off of 95% and 5% for outliers. Replace all outliers in the Assets colum with NA. 
+```{r}
+exec_comp_main_NAs <- exec_comp_main
+  
+lower_bound <- quantile(exec_comp_main_NAs$Assets, 0.05, na.rm = TRUE)
+upper_bound <- quantile(exec_comp_main_NAs$Assets, 0.95, na.rm = TRUE)
+
+# This provides the indexes of outliers
+outlier_indexes <- which(exec_comp_main_NAs$Assets < lower_bound | exec_comp_main_NAs$Assets > upper_bound)
+
+# And makes a dataset with just outliers
+exec_comp_main_NAs[outlier_indexes, "Assets"] <- NA
+
+# Count NAs
+#sum(is.na(exec_comp_main$Assets))
+#sum(is.na(exec_comp_main_NAs$Assets))
+
+```
+
+Q: How many NAs were in that column before you replaced outliers?  
+A: 0
+
+Q: How many NAs are in the dataset copy with replaced NAs?  
+A: 4969
+
+# Date-Time
+## Creating new date-time columns (4 points)
+All the functions and formatting we did with date times can be used within a mutate function to create new date-time columns. 
+
+Create a new copy of the stolen vehicle dataset and overwrite it to include 4 new columns: 
+
+1. a column called REPORTING_QUARTER that has the year and quarter when the incident was reported
+2. a column called REPORTING_LAPSE that has the difference between the time the incident happened (OCC DATE) and when it was reported in days (hint: if you nest each column in as.Date they will output the difference in days not seconds.)
+3. a column called INCIDENT_WEEKDAY that has the weekday (written out, like "Sunday") when the incident happened
+4. a column called INCIDENT_WEEK that has a numerical value for which week in the year the incident happened. (Sunday should be the first day of that week.)
+
+Then output the head() of the dataset. 
+```{r}
+library(zoo)
+Stolen_Vehicles_2012_Salt_Lake_City_COPY <- Stolen_Vehicles_2012_Salt_Lake_City
+
+Stolen_Vehicles_2012_Salt_Lake_City_COPY <- Stolen_Vehicles_2012_Salt_Lake_City_COPY %>% mutate(REPORTING_QUARTER <- as.yearqtr(`REPORT DATE`, "%m/%d/%Y %I:%M:%S %p"), REPORTING_LAPSE <- (as.Date(`REPORT DATE`) - as.Date(`OCC DATE`)), INCIDENT_WEEKDAY <- format(`OCC DATE`, "%A"), INCIDENT_WEEK <- format(`OCC DATE`, "%U")) 
+
+Stolen_Vehicles_2012_Salt_Lake_City_COPY %>% head()
+
+```
+
+## Other date-time practice (3 points)
+```{r}
+# Turn the following string into a POSIXct format
+as.POSIXct("June 14, 22 (Tuesday) 10:34 pm", format="%B %d, %y (%A) %I:%M %p")
+
+
+# Turn the following string into a POSIXct format (assume it is in correct Mountain Daylight Time), then convert it to the time zone of Central Europe (CET).
+date1 <- as.POSIXct("Feb 20 2022 13:55:22", format="%b %d %Y %H:%M:%S")
+with_tz(date1, tzone = "CET")
+
+# Turn the following string into a date format then extract the month fully spelled out.  
+date2 <- as.Date("2022-11-06", format="%Y-%m-%d")
+format(date2, "%B")
+
+```
+
+
+--End--
+
+# Optional feedback: 
+
+How hard was this assignment? Was it: too hard, too easy, or just right? 
+
+ANSWER: Just Right 
+
+Approximately how long did this assignment take you? 
+
+ANSWER: 3 hours 
+

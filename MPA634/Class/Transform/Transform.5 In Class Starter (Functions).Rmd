@@ -1,0 +1,408 @@
+---
+title: "Transform.5 In Class Starter (Functions)"
+author: "Laurel Galli-Graves"
+date: "12/15/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+```
+
+# Introduction to Functions
+Functions are very common in R. They enable us to reuse complex pieces of code without having to rewrite them every time. They also keep us from copying and pasting too much code, which helps us avoid error. We will deal predominantly with two types of functions: functions we write ourselves, and functions that are already written.
+
+# Existing Functions 
+By now we have started using some libraries/packages. These are essentially groups of useful functions that can all be loaded together. When you load packages, you make these functions available for use in your R session. 
+
+We can take a peak into the workings of functions in two ways. 
+
+## Documentation
+```{r}
+# Running ? before a function name will pull up the documentation for a specific function. Look at the documentation for the mean function. What are some things you learn? 
+?mean()
+
+
+```
+
+Q: Using the documentation, what types of objects can x be? 
+A: 
+
+```{r}
+# Try out the example in the documentation. 
+x <- c(0:10, 50)
+xm <- mean(x)
+c(xm, mean(x, trim = 0.10))
+```
+
+## Methods
+```{r}
+# Run the following code. Typically this is all we need to see the source function
+base:::mean
+
+# Because it has a default, include .default after
+base:::mean.default
+
+```
+
+
+Q: What happens if someone tries to put a non-numeric value in for "trim"?
+A: 
+
+Now look at the source code for the fct_count function from the forcats package. 
+```{r}
+forcats:::fct_count
+```
+
+# Writing a function 
+We can also write our own custom functions. Writing a function requires two steps. 
+
+1) when you create the function object
+2) when you "call" or use the function. 
+
+To create the function:
+
+function_name <- function (parameters) {
+  some action
+}
+
+To call the function: 
+
+function_name(parameters)
+
+```{r}
+# We have already seen a custom function before in this class. Let's revisit the descr_table function. 
+
+descr_table <- function(df) {
+
+  df_num <- select_if(df, function(col) is.numeric(col) | 
+                                        is.logical(col) | 
+                                        lubridate::is.Date(col)) 
+  
+  df_fac <- select(df, setdiff(colnames(df), colnames(df_num))) 
+  none <- rep("None", ncol(df_fac))
+  
+  matrix <- matrix(nrow = ncol(df), ncol=11, dimnames = list(c(names(df_num), names(df_fac)), c("Mean","Max","Min", "Std Dev", "Median", "Kurt", "Skew", "# Missing", "# Unique", "Class", "Mode")))
+  
+  matrix[,1] <- c(sapply(df_num, function(x) round(mean(x, na.rm = TRUE), 2)), none)
+  matrix[,2] <- c(sapply(df_num, function(x) max(x, na.rm = TRUE)), none)
+  matrix[,3] <- c(sapply(df_num, function(x) min(x, na.rm = TRUE)), none)
+  matrix[,4] <- c(sapply(df_num, function(x) round(sd(x, na.rm = TRUE), 2)), none)
+  matrix[,5] <- c(sapply(df_num, function(x) median(x, na.rm = TRUE)), none)
+  matrix[,6] <- c(sapply(df_num, function(x) round(moments::kurtosis(x, na.rm = TRUE), 2)), none)
+  matrix[,7] <- c(sapply(df_num, function(x) round(moments::skewness(x, na.rm = TRUE), 2)), none)
+  matrix[,8] <- sapply(cbind(df_num, df_fac), function(x) sum(is.na(x)))
+  matrix[,9] <- as.character(sapply(cbind(df_num, df_fac), function(x) length(unique(x))))
+  matrix[,10] <- as.character(sapply(cbind(df_num, df_fac), function(x) class(x)))
+  matrix[,11] <- sapply(cbind(df_num, df_fac), function(x) names(sort(table(x),decreasing=TRUE)[1]))
+  matrix <- as.data.frame(matrix)
+  return(matrix)
+}
+
+descr_table(mtcars)
+```
+
+Functions you write yourself can actually be seen in the global environment, unlike functions in packages, which are loaded but hidden. 
+
+## Parameters: data and details 
+When writing a function, it is important to figure out what inputs you want to put into the function. These typically fall into one of two categories: *data*, or the object you want to have the function manipulate, and *details*, which change how the function will respond. When we list these parameters, data should come first, followed by any parameters.
+
+```{r}
+# Look at the following code. 
+animals <- c("tigers", "lions", "bears")
+
+for (animal in animals) {
+  print(paste0(animal, " are animals."))
+}
+
+# How would you make this into a function? 
+print_Animals <- function(vec) {
+  for (animal in vec) {
+    print(paste0(animal, " are animals."))
+  }
+} 
+
+print_Animals(animals)
+
+# Now run your function on the following vector. 
+birds <- c("parrots", "chickadees", "finches")
+
+print_Animals(birds)
+
+```
+
+## Default parameters/arguments
+This function only had a data parameter. But let's make a detail parameter. When we make a detail parameter, we should give it a default value. 
+
+```{r}
+# Adjust the are_animals function to include a parameter "str_to_title" that when set to TRUE puts the animal name in title case. Default the str_to_title option as TRUE. 
+are_animals <- function(vec, str_to_title = TRUE) {
+  for (animal in vec) {
+    if (str_to_title) {
+      animal <- str_to_title(animal)
+    }
+    print(paste0(animal, " are animals."))
+  }
+} 
+
+
+
+# Run the animals vector into the function. Use the default for str_to_title. 
+are_animals(birds)
+
+# Now run the birds vector into the function. This time, overwrite the default for str_to_title. 
+are_animals(birds, FALSE)
+
+```
+
+```{r}
+# Your turn! Write a function that accepts a vector and prints each element in the vector with the number of characters in the element. So if you run the birds vector into your function, it should output "parrots has 7 letters." "chickadees has ten letters." "finches has seven letters." Name it count_char
+
+# Hint: the function nchar() counts the number of characters in a string. 
+count_char <- function(vec) {
+  for (i in seq_along(vec)) {
+    print(paste0(vec[[i]], ' has ', nchar(vec[[i]]), ' letters'))
+  }
+}
+
+# Run the birds vector through your function
+count_char(birds)
+
+# Now try adding a logical parameter called "numbers" that will change the output to "4325 has 4 numbers."  if TRUE. If FALSE, output the previous output for character vectors. Default the parameter to FALSE.
+count_char <- function(vec, numbers = FALSE) {
+  if (numbers) {
+    statement_string = ' numbers'
+  }
+  else {
+    statement_string = ' letters'
+  }
+  for (i in seq_along(vec)) {
+    print(paste0(vec[[i]], ' has ', nchar(vec[[i]]), statement_string))
+  }
+}
+
+
+
+# Run the following vector through the new function. 
+numbers <- c(41415, 918, 1, 343, 1249, 34, 2525)
+
+count_char(numbers, TRUE)
+# Now run the animals vector through the function. 
+count_char(animals)
+
+# Bonus: How would you make the function check if the vector were automatic instead of using a parameter?
+count_char <- function(vec) {
+  if (is.numeric(vec)) {
+    statement_string = ' numbers'
+  }
+  else {
+    statement_string = ' letters'
+  }
+  for (i in seq_along(vec)) {
+    print(paste0(vec[[i]], ' has ', nchar(vec[[i]]), statement_string))
+  }
+}
+
+count_char(numbers)
+# Now run the animals vector through the function. 
+count_char(animals)
+
+```
+
+## No parameters
+It's also possible to write a function without any parameters or inputs. 
+```{r}
+# The functions Sys.time() and Sys.Date() return the current date and time. Run them to see their default format. 
+Sys.Date()
+Sys.time()
+
+# With a little formatting, you can turn these into something more readable. Run the following code.
+format(Sys.Date(), "%B %d, %Y")
+format(Sys.time(), "%I:%M %p")
+
+# Write a function that says. "Hello friend! It is 12:49 PM on December 15, 2021." but for the current time. 
+
+current_Time <- function() {
+  print(paste0('Hello friend! It is ', format(Sys.time(), "%I:%M %p"), ' on ', format(Sys.Date(), "%B %d, %Y")))
+}
+
+# Run the current time function. 
+current_Time()
+
+```
+
+## Infinite parameters
+Sometimes you may have a function that needs to accept unlimited inputs. For this type of function, you will need to add the ... parameter. Look at the example below (From R for Data Science). 
+```{r}
+commas <- function(...) {
+  stringr::str_c(..., collapse = ", ")
+}
+commas(letters[1:10])
+```
+
+## Returning
+When creating a function it is important to be aware of what is actually being returned by the function. One way to do this is to set the output of a function to an object and take a look at that object.
+```{r}
+# Save the output of the are_animals(animals) function to the object name "output". Then print out output
+
+```
+
+Q: What is printed when the function is run? 
+A:  
+
+Q: What is output of this function? 
+A: 
+
+To actually output something that can be saved, we need to use "return()" within the function. 
+```{r}
+# Adjust the are_animals function to return the results. 
+
+
+```
+
+Q: Now what is the output of the function? 
+A: 
+
+If we wanted to return all the values in a list or vector, we would need to create that vector within the function and output it. Try to understand the following code. 
+```{r}
+are_animals <- function (vec, str_to_title = TRUE) {
+  new_vec <- vector(mode = "character", length = length(vec))
+  for (i in seq_along(vec)) {
+    if (str_to_title){
+      new_vec[i] <- paste0(str_to_title(vec[i]), " are animals.")
+    } else {
+      new_vec[i] <- paste0(vec[i], " are animals.")
+    }
+  }
+  return(new_vec)
+}
+output <- are_animals(animals)
+output
+```
+
+## Pipeable and missing
+Returning the right output is key to making your function pipeable. You don't always need your function to be pipeable, but it may useful. In order to do make it pipeable, you should ensure that you are returning the same object type as you are accepting. So if you input a dataframe, you should get out a dataframe. 
+
+It may be helpful to identify two types of functions. Transformations (where the object you pass in is altered some way) or side-effects (where the function outputs something else, like a graph, but the original input is not changed.) 
+
+Look at the following examples taken from the R for Data Science book. 
+```{r}
+show_missings <- function(df) {
+  n <- sum(is.na(df))
+  cat("Missing values: ", n, "\n", sep = "")
+  invisible(df)
+}
+show_missings(mtcars)
+```
+
+The function prints out the missing values of a dataframe, but actually outputs the dataframe itself so it can be piped (but keeps it from being printed with the invisible() function).
+
+Now it can be piped. 
+```{r}
+mtcars %>% 
+  show_missings() %>% 
+  mutate(mpg = ifelse(mpg < 20, NA, mpg)) %>% 
+  show_missings() 
+```
+
+If you find this last part about outputting is way outside your paygrade, don't worry. It is not a necessary part of understanding functions for this class, but rather a more advanced technique. Just know that you should be aware of what you are returning from a function and make sure you are actually returning what you want to return. 
+
+## Outputting errors
+You may want to output an error in your code to help people who have made a mistake you foresee. 
+
+The code to do this is stop("error message")
+```{r}
+# Create a function that prints the mean, median, and standard deviation of a numeric vector. Include a parameter for na.rm. Output the error "This is not a numeric vector" if a non-numeric vector is input into the function. Call it descr_stats.
+
+
+# Run this on the animals and numbers vectors. 
+
+```
+
+## Environment
+Now I am going to teach you some ill-advised function techniques that just might come in handy someday (but are frowned against in the R community.)
+
+Typically, you should have an input for anything that you need to run in R. Additionally, a function usually just has one output. 
+
+There are two useful workarounds to these rules, however, that make R very flexible and may come in handy someday. 
+
+1. If a function calls an object not input or created within the function, it will then look in your global environment for it. 
+```{r}
+a_value <- 4
+b_value <- 6
+
+adding <- function () {
+  a_value + b_value
+}
+
+adding()
+```
+
+2. Objects created within a function do not populate the global environment...unless you tell them to. 
+```{r}
+# Not populating the global environment
+h_fun <- function () {
+  h <- 13
+}
+h_fun()
+
+# Method 1: populating the global environment
+h_fun <- function () {
+  h <<- 13
+}
+h_fun()
+
+# Method 2: populating the global environment
+h_fun <- function () {
+  assign("h1", 13, envir=globalenv())
+}
+h_fun()
+```
+
+# Source sheets 
+You may come upon a situation where you have a whole lot of functions that you would like to use in your work (or pass to someone else) but you don't want to copy and paste them all the time and you don't want them to bog down whatever rmd you are coding on. In that case, an easy solution is to make a source/helper file (usually a script) where you store all of the codes for functions you want to use. You can then load those functions with the source() function which will load all the functions into your global environment.
+
+```{r}
+# Here's an example 
+# source("filepath/helper.R")
+```
+
+
+# Writing packages 
+Using a source file is the quick and dirty method. If these functions become an important enough part of your workflow or you want to share them broadly, you may consider writing a package. Packages are more widely shareable but take longer to make because you have to write up the documentation and really make sure they are totally bug free. 
+
+For more information on writing a package, you can check out this book:
+https://r-pkgs.org/
+
+There are also lots of videos on Youtube, but some of them are more helpful than others. 
+
+# When to use functions 
+Hadley Wickam's rule is that if you copy and paste code more than once, you should create a function. This is a pretty good baseline rule in my opinion. I also create functions if I have a chunk of code that is really gigantic--so I don't even have to paste that again once.
+
+# Practice 
+```{r}
+# Create a function (count_nas) that accepts a dataframe and prints the number of missing values in each column in sentence format. "Column 1 has x NAs."
+
+
+# Did you know there is a starwars dataset loaded in tidyverse? Run that dataset through your function.
+
+```
+
+```{r}
+# Adjust your function to output an "Input is not a dataframe" error if a different object type is submitted 
+
+
+# Test out your function with something that will generate an error. 
+
+```
+
+```{r}
+# Add another parameter to your function. Call it "name" and when name = TRUE call the function by its name "The name column has x NAs" and when it is false, stick with "Column 1 has..." Default this parameter to TRUE
+
+
+# Test out your function with the starwars dataset.
+
+```
+
+

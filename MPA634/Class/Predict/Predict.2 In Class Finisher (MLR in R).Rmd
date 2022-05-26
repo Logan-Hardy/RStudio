@@ -1,0 +1,378 @@
+---
+title: "Predict.2 In Class Finisher (MLR in R)"
+author: "Laurel Galli-Graves"
+date: "2/24/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(fastDummies)
+library(corrplot)
+library(caret)
+library(VIM)
+```
+
+# Importing Data
+Import the covid_numbers_feb_2022 csv. Make character variables factors. 
+```{r}
+covid_numbers_feb_2022 <- read_csv("../../Data/covid_numbers_feb_2022.csv") %>% mutate_if(is.character, as.factor)
+```
+
+
+# Cleaning
+
+## Drop character variables 
+Should we include states in our model? Well, maybe this is a legitimate variable since the state policies, location, and other factors could affect our covid per capita outcome, but if we want to make this numeric we have to either combine levels or make a lot of dummy columns, so let's drop state variables out for now. 
+```{r}
+# Make a copy of the dataset called covid_clean and drop out character and large factor variables.
+covid_clean <- covid_numbers_feb_2022 %>% select(-state, -county, -state.y, -fips)
+```
+
+## Factor Variables 
+We have two factor variables left, mask_requirement2020 and Metro-status. Metro_status only has two levels so we can easily turn this into binary, but mask_requirement2020 has nine levels. Use fct_count to check how many of each level there are. 
+```{r}
+fct_count(covid_clean$mask_requirement2020, sort = TRUE)
+```
+
+There are a lot of ways we could handle this data but let's keep it simple. Make three levels with fct_lump so that we have in public, none, and all the other levels together. Overwrite the dataset.
+```{r}
+covid_clean <-covid_clean %>% mutate(mask_requirement2020 = fct_lump(mask_requirement2020, n = 2))
+```
+
+## Making Data Numerical 
+Unlike in excel where these steps would have taken a long time, we can now dummy code these factor variable and include them in our regression model. 
+```{r}
+covid_clean <- 
+  covid_clean %>% 
+    dummy_cols(remove_first_dummy = TRUE, ignore_na = TRUE, remove_selected_columns = TRUE)
+```
+
+## Mutating for population
+Remember in excel we made a couple of changes to certain variable to improve our model? We are going to make those same corrections here. 
+
+1. Remove the deaths column. If we are predicting cases we probably don't know deaths. 
+2. Drop one of the age columns to avoid multicollinearity.
+3. Change cases and icu_beds to per capita. (Name them something distiguishable).
+4. Then drop cases and icu_beds
+
+```{r}
+covid_clean <- 
+covid_clean %>% 
+  select(-deaths, -perc_age_50_64) %>% 
+  mutate(icu_beds_per_cap = icu_beds/POPESTIMATE2020, 
+         cases_per_cap = cases/POPESTIMATE2020) %>% 
+  select(-cases, -icu_beds)
+```
+
+## Remove NAs
+Create a new dataset that is covid_clean without NAs. 
+```{r}
+covid_clean_no_nas <- covid_clean %>% na.omit()
+```
+
+# Correlation Matrix 
+The function cor() can be used to generate a correlation matrix. It cannot accept NAs. Use this function on the covid_clean_no_nas dataset. Save it as an object called cor_matrix. Take a look at the object you have created. 
+```{r}
+cor_matrix <- cor(covid_clean_no_nas)
+cor_matrix
+```
+
+## Visualizing the matrix
+Using the corrplot package (and corrplot() function) we can easily visualize this matrix. The following methods can be used: “circle”, “square”, “ellipse”, “number”, “shade”, “color”, “pie”. Try a few in the following code chunk. Change the aspect ratio so we can see this better. 
+```{r, fig.width = 6, fig.height = 6}
+corrplot(cor_matrix, method="circle")
+corrplot(cor_matrix, method="square")
+corrplot(cor_matrix, method="ellipse")
+corrplot(cor_matrix, method="number")
+corrplot(cor_matrix, method="shade")
+corrplot(cor_matrix, method="color")
+corrplot(cor_matrix, method="pie")
+```
+There are a ton of parameters in this function that you can use to change this plot. Feel free to look at the documentation. 
+
+# Regression
+We're ready to create our first regression! If we want to use all of the variables in our dataset, we can use the following code to do so.
+```{r}
+model <- lm(cases_per_cap~.,covid_clean) 
+summary(model)
+```
+
+Q: How can we know the p-value significance at first glance? Where are coefficients? Where is the R-Squared? How about the y intercept? 
+A: We will point out all of these in class. 
+
+Q: If you save the model summary as an object, what basic data format is it in?  
+A: It is a list. 
+
+```{r}
+sum_model <- summary(model)
+
+# We can then use the global environment to extract specific data. 
+sum_model[["r.squared"]]
+```
+
+## Choosing variables 
+What if we don't want all of the variable in our model? Adjust the following code to only include POPESTIMATE2020, perc_age_0_19, and pov_perc as x's in our model.
+```{r}
+model2 <- lm(cases_per_cap~POPESTIMATE2020 + perc_age_0_19 + pov_perc,covid_clean) 
+summary(model2) 
+```
+
+ 
+# Accuracy
+
+## Extracting Predicted Values
+We may want to extract the predicted values. We can do that with the code below. 
+```{r}
+predict(model) %>% head()
+```
+
+Make a small dataset called "model_accuracy" that is just the predicted and actual values of cases_per_cap. Then create new columns for difference, absolute difference, and squared difference. 
+```{r}
+# The predicted values and the original values as vectors title predicted and actual.
+predicted <- predict(model)
+actual <- covid_clean_no_nas$cases_per_cap
+
+# cbind them together, then pipe into as_tibble(). Mutate the other columns, and save the dataset as model_accuracy.
+model_accuracy <- cbind(predicted, actual) %>% 
+  as_tibble() %>% 
+  mutate(difference = predicted-actual, 
+         abs_difference = abs(difference), 
+         sqr_difference = difference*difference)
+```
+
+## Visualizing accuracy
+Another way we can take a look at the accuracy is to make a scatterplot. 
+```{r}
+model_accuracy %>% 
+  ggplot(aes(predicted, actual)) + geom_point(alpha = .2) + geom_smooth(method = "lm")
+```
+
+## RMSE and MAE
+We will use the caret package a few times for modeling. This package has functions for RMSE and MAE. They require vectors for each of the predicted values and the actual values. Luckily we already have those saved. 
+```{r}
+RMSE(predicted, actual)
+MAE(predicted, actual)
+```
+
+# Standardizing a dataset
+Even though we said we can think of coefficients as weights, we really can't compare them to each other because each variable is on a different scale. For example, the percentage columns only go up to 1 (or 100 depending on their format) and the population estimate column goes into the millions. Therefore for a change of "1" in a percentage column is the difference of 100% but only 1 person for the population column. If we want to compare how much each variable is actually contributing to the model, we need to standardize our dataset, aka put all of the variables on the same scale. (This can also be called normalizing).
+
+There are two main methods for standardizing that we will cover:
+min-max normalization and z-score standardization. Min-max normalization is better when there aren't as many outliers. 
+
+## Z-score standardization
+```{r}
+scaled <- scale(covid_clean) %>% as_tibble()
+model_scaled <- lm(cases_per_cap~.,scaled) 
+summary(model_scaled)
+```
+
+Notice the R-squared value hasn't changed (because we haven't actually changed the data), but now we can compare coefficients. Notice the percent indigenous column has a far greater weight than others.
+
+## Min-Max Normalization
+```{r}
+normalize <- function(x) {
+    return((x- min(x, na.rm = TRUE)) /(max(x, na.rm = TRUE)-min(x, na.rm = TRUE)))
+}
+min_max <- as.data.frame(lapply(covid_clean, normalize))
+model_min_max <- lm(cases_per_cap~.,min_max) 
+summary(model_min_max)
+```
+
+When we standardize this way, we see that the percent of pacific islanders has a greater effect.This could be helpful to finding your most important features (x variables).
+
+# Modeling 
+This is all fine and dandy, but to really get into the data science process we have to make sure we have the best model. Right now our R-Squared is 0.2197644. Can we beat that?
+
+## Imputing NAs
+One thing we can do is instead of deleting NAs (which the model will do by default if we leave any in), we can try to impute out NAs and see if that makes a difference in our model. 
+
+Let's create several datasets, then we can use a function to put them all through a regression and see which is most successful. The kNN dataset take a long time to run so it gets it's own code chunk. 
+
+```{r}
+# Imputing with mean
+impute_mean <- covid_clean %>% 
+  mutate(across(where(is.numeric), ~replace_na(.x, mean(.x, na.rm = TRUE)))) 
+
+# Imputing with mean
+impute_median <- covid_clean %>% 
+  mutate(across(where(is.numeric), ~replace_na(.x, median(.x, na.rm = TRUE)))) 
+
+# Imputing with mode
+calc_mode <- function(x){
+  # List the distinct / unique values
+  distinct_values <- unique(x)
+  # Count the occurrence of each distinct value
+  distinct_tabulate <- tabulate(match(x, distinct_values))
+  # Return the value with the highest occurrence
+  distinct_values[which.max(distinct_tabulate)]
+}
+
+# Since there isn't always a mode for numerical values, we will fill with the mode, then the mean.
+impute_mode <- covid_clean %>% 
+  mutate(across(everything(), ~replace_na(.x, calc_mode(.x)))) %>% 
+  mutate(across(where(is.numeric), ~replace_na(.x, median(.x, na.rm = TRUE)))) 
+```
+
+Again, the code below can take a while to run.
+```{r}
+# Imputing with kNN
+impute_knn <- covid_clean %>% kNN(imp_var = FALSE)
+```
+
+Here is a function that accepts a dataset and a y variable and will return the R-Squared, Adjusted R-Squared, MAE, and RMSE. If we turn results to FALSE it will return the actual model instead. We'll save those results in vectors. 
+```{r}
+lm_fun <- function(df, y, results = TRUE) {
+    model <- lm(as.formula(paste(y, "~.", collapse="")), df)
+    results_vec <- c(round(summary(model)[["r.squared"]], 3), 
+                     round(summary(model)[["adj.r.squared"]], 3), 
+                     round(MAE(predict(model), df[[y]]), 3),
+                     round(RMSE(predict(model), df[[y]]), 3))
+    if (results) return(results_vec)
+    else return(model)
+}
+
+covid_clean_no_nas_lm <- lm_fun(covid_clean_no_nas, "cases_per_cap")
+impute_mean_lm <- lm_fun(impute_mean, "cases_per_cap")
+impute_knn_lm <- lm_fun(impute_knn, "cases_per_cap")
+impute_median_lm <- lm_fun(impute_median, "cases_per_cap")
+impute_mode_lm <- lm_fun(impute_mode, "cases_per_cap")
+```
+
+Once you have run through all of those models, put their names in the rbind below. 
+```{r}
+model_results <-
+  rbind(covid_clean_no_nas_lm, 
+      impute_mean_lm, 
+      impute_knn_lm, 
+      impute_median_lm, 
+      impute_mode_lm)
+
+colnames(model_results) <- c("R2", "Adj R2", "MAE", "RMSE")
+
+model_results
+```
+
+Q: Which of these models is best?  
+A: Overall the highest R-squared is definitely for knn, but they are also showing moderate levels of error compared to some of the other models. Nonetheless, let's use our impute_knn dataset from now on to see if we can improve this model. 
+
+## Addressing skewness
+Remember our assumption that y was normally distributed? If our y variable is skewed this could also alter our model. Let's check the skewness of our y variable in the impute_knn dataset. 
+
+```{r}
+moments::skewness(impute_knn$cases_per_cap, na.rm = TRUE)
+
+impute_knn %>% ggplot(aes(x = cases_per_cap)) + geom_histogram(fill ="lightblue")
+```
+Remember that the closer to zero we can get, the better. >0 is positive skew, <0 is negative skew. There are lots of cut offs for what "acceptable skew" is. In this case, our y is not very skewed but we can still see if we can improve the skew. 
+
+We can adjust positive-skewed variables with a square root, cube root, or logarithmic adjustment. We adjust negative-skewed variables with a squared, cubed, or exponent (e) adjustment
+
+
+Here are all the alterations. We will make a dataset for each and drop the original y so we can try them in our function.
+```{r}
+# Squared y
+knn_squared_y <- impute_knn %>% 
+  mutate(y_squared = cases_per_cap^2) %>% 
+  select(-cases_per_cap)
+
+# Cubed y
+knn_cubed_y <- impute_knn %>% 
+  mutate(y_cubed = cases_per_cap^3) %>% 
+  select(-cases_per_cap)
+
+# Exponential y
+knn_exp_y <- impute_knn %>% 
+  mutate(y_exp = exp(cases_per_cap)) %>% 
+  select(-cases_per_cap)
+
+# Square_root y
+knn_sq_root_y <- impute_knn %>% 
+  mutate(y_sq_root = cases_per_cap^(1/2)) %>% 
+  select(-cases_per_cap)
+
+# Cubed_root y
+knn_cube_root_y <- impute_knn %>% 
+  mutate(y_cube_root = cases_per_cap^(1/3)) %>% 
+  select(-cases_per_cap)
+
+# Logarithmic y
+knn_log_y <- impute_knn %>% 
+  mutate(y_log = log(cases_per_cap)) %>% 
+  select(-cases_per_cap)
+```
+
+Let's check the skewness of each of these. 
+```{r}
+print("Squared")
+moments::skewness(knn_squared_y$y_squared, na.rm = TRUE)
+print("Cubed")
+moments::skewness(knn_cubed_y$y_cubed, na.rm = TRUE)
+print("Exponent")
+moments::skewness(knn_exp_y$y_exp, na.rm = TRUE)
+print("Square Root")
+moments::skewness(knn_sq_root_y$y_sq_root, na.rm = TRUE)
+print("Cubed Root")
+moments::skewness(knn_cube_root_y$y_cube_root, na.rm = TRUE)
+print("Logarithmic")
+moments::skewness(knn_log_y$y_log, na.rm = TRUE)
+```
+
+Looks like none of these are a great improvement on our original y. In some datasets this is a lot more helpful. 
+
+Let's see how they fare in the model. 
+```{r}
+knn_squared_y_lm <- lm_fun(knn_squared_y, "y_squared")
+knn_cubed_y_lm <- lm_fun(knn_cubed_y, "y_cubed")
+knn_exp_y_lm <- lm_fun(knn_exp_y, "y_exp")
+knn_sq_root_y_lm <- lm_fun(knn_sq_root_y, "y_sq_root")
+knn_cube_root_y_lm <- lm_fun(knn_cube_root_y, "y_cube_root")
+knn_log_y_lm <- lm_fun(knn_log_y, "y_log")
+
+model_results <-
+  rbind(model_results, 
+        knn_squared_y_lm, 
+        knn_cubed_y_lm, 
+        knn_exp_y_lm, 
+        knn_sq_root_y_lm,
+        knn_cube_root_y_lm, 
+        knn_log_y_lm)
+
+model_results
+```
+
+Looks like our best model is now the logarithmic knn model.
+
+# Predicting based on a model
+How do we use this? Now that we have figured out which model is most accurate, we can us it to predict future values where we don't know the per capita case numbers. 
+```{r}
+# First, rerun the knn_log_y through the lm_fun. This time turn results to FALSE so it returns the model instead of returning statistics about how good the model is. Save the model as log_model. 
+log_model <- lm_fun(knn_log_y, "y_log", results = FALSE)
+
+# Next we are going to create a hypothetical test county by grabbing a sample of 2 from the covid_clean_no_nas dataset. In real life, we would have a a whole dataset potentially of new counties we wanted to predict rates for. But this will work here.
+county_test <- sample_n(covid_clean_no_nas %>% select(!cases_per_cap), 2)
+
+# Use the predict function with the log model to generate a prediction for these two observations. 
+predict(log_model, newdata = county_test)
+```
+
+Before you go jumping to the conclusion that these are the cases predictions, remember these are the logarithmic version of our correct predictions. To get our actual predictions we need to exponentiate these numbers to reverse the logarithm.
+```{r}
+# Use the exp function to reverse the logarithm.
+predict(log_model, newdata = county_test) %>% exp()
+```
+
+That looks better! 
+
+Q: How do we interpret these findings?  
+A: These are the predictions based on county information of what percentage of the population would have already had covid by February 2022 when the covid case numbers came through. We could always also multiply these numbers by each county's population to figure out how many estimated cases they have. 
+
+## Confidence Intervals 
+We can also generate upper and lower estimates for each county.
+```{r}
+predict(log_model, newdata = county_test, interval = "confidence") %>% exp()
+```
+
+

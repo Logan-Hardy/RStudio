@@ -1,0 +1,294 @@
+---
+title: "Clean.2 Starter (Strings)"
+author: "Your Name"
+date: "1/31/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, 
+                      message = FALSE)
+library(tidyverse)
+library(tidytext)
+library(textdata)
+library(sentimentr)
+```
+
+# Import data
+Import the covid19_tweets dataset *not* with mutate.
+```{r}
+covid19_tweets <- read_csv("../Data/covid19_tweets.csv")
+```
+
+# Make a copy of your data
+As we will always do when data cleaning, we will make a copy of the dataset to make changes to. (Call it covid19_tweets_edit.)
+```{r}
+covid19_tweets_edit <- covid19_tweets
+```
+
+# Review 
+We have already learned a couple string editing techniques. Review the following code.
+```{r}
+string <- "Hey I just love being so #magical!!!! @HarryPotter @GinnyWeasley #SoMagyck https://www.wizardingworld.com/writing-by-jk-rowling"
+
+str_to_lower(string)
+str_to_upper(string)
+str_to_title(string)
+paste("New String", string, sep = " ")
+paste0(string, string)
+```
+
+Q: What are we trying to do with text editing?  
+A:   
+
+# Extracting data
+```{r}
+# Run each of the following lines one at a time
+str_extract_all(string, "(?<=^|\\s)#\\S+")
+str_extract_all(string, "(?<=^|\\s)@\\S+")
+str_extract_all(string, " ?(f|ht)tp(s?)://(.*)[.][a-z]+")
+
+# Use these to create new variables in the copied dataset
+covid19_tweets_edit <- 
+  covid19_tweets_edit %>% mutate(hashtags = str_extract_all(text, "(?<=^|\\s)#\\S+") %>% map_chr(~ str_c(., collapse = " ")),
+                                  mentions = str_extract_all(text, "(?<=^|\\s)@\\S+") %>% map_chr(~ str_c(., collapse = " ")),
+                                  urls = str_extract_all(text, " http.*") %>% map_chr(~ str_c(., collapse = " ")))
+```
+
+# Replacing strings
+Now we want to remove these things from the text column. 
+```{r}
+# Adjust the following code to remove urls, hashtags, and mentions
+#covid19_tweets_edit <- covid19_tweets_edit %>% mutate(text = str_replace_all(text, c('(?<=^|\\s)#\\S+', "(?<=^|\\s)@\\S+", " ?(f|ht)tp(s?)://(.*)[.][a-z]+" = "")))
+
+covid19_tweets_edit <- 
+  covid19_tweets_edit %>% mutate(text = str_replace_all(text, c("(?<=^|\\s)#\\S+" = "", 
+                                                              "(?<=^|\\s)@\\S+" = "",
+                                                              " http.*" = "")))
+```
+
+We can also remove other features. Line breaks, punctuation, and we may also want to remove numbers (Depending on the analysis.)
+```{r}
+# Use the following code to remove these elements from the copied dataset. 
+
+# Line breaks:  "[\r\n]"
+# Punctuation:  "[:punct:]"
+# Numbers: "[[:digit:]]+"
+
+
+covid19_tweets_edit <- 
+  covid19_tweets_edit %>% 
+    mutate(text = str_replace_all(text, c("(?<=^|\\s)#\\S+" = "", 
+                                          "(?<=^|\\s)@\\S+" = "",
+                                          " http.*" = "", 
+                                          "[\r\n]" = "", 
+                                          "[:punct:]" = "",
+                                          "[[:digit:]]+" = "")))
+
+```
+
+# Counting characters
+It might be useful for us to see if longer texts have a different effect than shorter texts. (Note that in this dataset, all texts have been cut to a certain length. Ideally we would have access to full text.)
+```{r}
+nchar(string)
+
+# Use the code above to make a new column that is a count of all the characters in the text column. (Minus all the things we have removed of course)
+
+covid19_tweets_edit <- covid19_tweets_edit %>% mutate(count_char = nchar(text))
+
+```
+
+# Removing capitals 
+We already reviewed how to remove capital letters from text. Overwrite the text column to be lowercase in the copied dataset. 
+```{r}
+
+covid19_tweets_edit <- covid19_tweets_edit %>% mutate(text = str_to_lower(text))
+
+```
+
+# Match string (create new dataset from string)
+We can also test the existence of a string. Say for example, we want to compare tweets that use the word covid with those that use coronavirus.
+```{r}
+str_detect(string, "Harry")
+str_detect(string, "fruit cake")
+
+
+# Adapt the code above to make a new column that checks if the text or hashtags columns say covid. If they do, have the new column say TRUE, and if not, FALSE. Do the same with coronavirus
+
+covid19_tweets_edit <- 
+  covid19_tweets_edit %>% 
+  mutate(covid = ifelse(str_detect(text, "covid") | str_detect(str_to_lower(hashtags), "covid"), TRUE, FALSE), 
+         coronavirus = ifelse(str_detect(text, "coronavirus") | str_detect(str_to_lower(hashtags), "coronavirus"), TRUE, FALSE))
+
+```
+
+# Counting instances of a string
+```{r}
+str_count(string, "@")
+
+# Adapt the code above to count how many hashtags each tweet uses and make a new column in the copied dataset.
+
+covid19_tweets_edit <- covid19_tweets_edit %>% mutate(hashtag_counts = str_count(hashtags, "#"))
+
+```
+
+# Sentiment analysis
+Another thing we can do is look into the sentiment, connotations, or feelings behind the text. To do this we will want to make a new sentiment dataset which we will later merge back into the copied dataset.  
+
+Make a new new copy
+```{r}
+# Make a copy of the copied dataset that has 1) a unique identifier (or a combo of identifiers) and 2) the text column. Call it sentiment_tweets.
+sentiment_tweets <- covid19_tweets_edit %>% select(user_name, date, text)
+
+```
+
+
+```{r}
+# Adapt the following code to split every word up individually (Yes, this will make our dataset really long!)
+sentiment_tweets <- sentiment_tweets %>% 
+                unnest_tokens(word, text) # Text is the name of the old column, and we are making a word column
+```
+
+Now we are going to remove all stopwords, meaning commong words that do not contribute greatly to the meaning or emotion of a text. 
+```{r}
+# Adjust the code below. The first time you did this you will have to download the stop words dictionary. 
+custom_stop <- c("get", "can") # You can add any other words to this list to remove them.
+
+sentiment_tweets <- sentiment_tweets %>% 
+                anti_join(get_stopwords()) %>% 
+                filter(!word %in% custom_stop)
+```
+
+Sentiment libraries
+```{r}
+# Take a look at some of the libraries that we will use. You will have to download these the first time you use them. 
+get_sentiments("nrc") %>% head()
+get_sentiments("afinn") %>% head()
+get_sentiments("bing") %>% head()
+```
+
+Merge in the emotion dictionary (It's normal for this code to take a minute.)
+```{r}
+# Adjust the following code to merge the emotion dictionary with our sentiment dataset. (All you have to change is the name of the dataset when it appears and what you are grouping by!) 
+sentiment_tweets <- sentiment_tweets %>% 
+  full_join(get_sentiments("nrc")) %>% 
+  group_by(user_name, date, sentiment) %>% 
+  summarize(count = n()) %>% 
+  na.omit() %>% 
+  pivot_wider(names_from = sentiment, values_from = count) %>% 
+  mutate(across(everything(), ~replace_na(.x, 0))) %>% 
+  ungroup() %>% 
+  full_join(sentiment_tweets)
+```
+
+Merge in the positivity weight dictionary 
+```{r}
+# Adjust the name of the dataset and the unique identifier
+sentiment_tweets <- 
+sentiment_tweets %>% 
+  full_join(get_sentiments("afinn")) %>% 
+  group_by(user_name, date) %>% 
+  summarize(positivity_weights = mean(value, na.rm = TRUE)) %>% 
+  ungroup() %>% 
+  full_join(sentiment_tweets)
+```
+
+Merge in the positive negative dictionary.
+```{r}
+# Adjust the name of the dataset and the unique identifier
+sentiment_tweets <- 
+sentiment_tweets %>% 
+  full_join(get_sentiments("bing")) %>% 
+  group_by(user_name, date, sentiment) %>% 
+  summarize(count = n()) %>% 
+  na.omit() %>% 
+  pivot_wider(names_from = sentiment, values_from = count) %>% 
+  mutate(across(c(positive, negative), ~replace_na(.x, 0)), 
+         positivity_binary = (positive - negative)/sum(positive, negative, na.rm = TRUE)) %>% 
+  ungroup() %>% 
+  select(-positive, -negative) %>% 
+  full_join(sentiment_tweets)
+```
+
+Remove words and duplicate rows. Rejoin to the copied dataset. 
+```{r}
+# Adjust the following code to rejoin the datasets. (Just change the name of the datasets and the unique identifier)
+covid19_tweets_edit <- 
+  sentiment_tweets %>% select(-word) %>% 
+    distinct() %>% 
+    full_join(covid19_tweets_edit, by = c("user_name", "date")) 
+```
+
+Q: What is the difference now between the positivity_binary and positivity_weights columns? How about the positive column? 
+A: 
+
+# Summarizing 
+Now that you have much more information about each tweet, you can do some summarizing based on other categories.
+```{r}
+# Generate a table that shows the average positive sentiment for users who are, and are not verified. Use positivity_binary as your column. 
+
+covid19_tweets_edit %>% 
+  group_by(user_verified) %>% 
+  summarize(ave_positivity = mean(positivity_binary, na.rm = TRUE))
+
+# Generate another table that shows the average weighted value of positivity for users who do and do not use the word coronavirus. (Use positivity_weights)
+covid19_tweets_edit %>% 
+  group_by(coronavirus) %>% 
+  summarize(ave_positive_weight = mean(positivity_weights, na.rm = TRUE))
+
+```
+
+# Visualization 
+There are tons of visualizations we could make with this data, but have a look at a couple. 
+```{r}
+theme_new <-  ggthemes::theme_fivethirtyeight(base_size=12) %+replace% theme(panel.grid.major.y = element_line(colour = "grey80", size = 0.25),  panel.grid.major.x = element_blank(), panel.background = element_rect(fill = "white"), plot.background = element_rect(fill = "white"), legend.background = element_rect(fill = "white"))
+
+covid19_tweets_edit %>% 
+  filter(!is.na(covid)) %>% 
+   ggplot(aes(y = fct_reorder(as.factor(covid), positivity_weights, median), x = positivity_weights, fill = covid)) + 
+         geom_violin(alpha = .6, fill = "#afd7db", size = 0) +
+        geom_boxplot(width = 0.1,
+                     fill = "#ffffff",
+                     alpha = 0.5, 
+                     size = .2,
+                     outlier.alpha = .01) +
+        xlim(-10,10) + 
+        stat_summary(
+          fun = "mean",
+          geom = "point",
+          shape = 23,
+          size = 1,
+          color = "red",
+          fill = "red",
+          stroke = 0.75, 
+          alpha = .6) +
+        labs(title = "Violin plot of covid tweet sentiments", 
+            subtitle = "It appears that tweets that did not have 'covid' appeared to have a greater \nsentiment spread", 
+            y = "Whether a tweet contained the word 'covid'", 
+            x = "Weighted sentiment per tweet") +
+        theme_new + 
+        theme(axis.title = element_text(size = 10, color = "grey40"),
+              axis.title.x = element_text(hjust = .02, vjust = .4),
+              legend.position = "none")
+
+
+covid19_tweets_edit %>% 
+        ggplot(aes(y = count_char, x = anger)) + 
+        geom_point(color = "#183054", alpha = .1, position = "jitter") + 
+        geom_smooth(method = lm, color = "#ffa781", size = .7) +
+        labs(title = "Relationship between text length and number of angry words", 
+            subtitle = "THere appears to be a slight relationship", 
+            x = "Number of angry words", 
+            y = "Number of characters") +
+        theme_new + 
+        theme(axis.title = element_text(size = 10, color = "grey40"))
+```
+
+# Stringr cheat sheet
+Take a look at the cheat sheet for the stringr package. Note some of the functions we haven't covered. 
+
+https://evoldyn.gitlab.io/evomics-2018/ref-sheets/R_strings.pdf
+
+
+
+

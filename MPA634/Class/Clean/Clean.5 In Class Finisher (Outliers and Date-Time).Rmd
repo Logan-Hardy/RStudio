@@ -1,0 +1,277 @@
+---
+title: "Clean.4 In Class Finisher (Outliers and Dates)"
+author: "Your Name"
+date: "2/8/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, 
+                      message = FALSE)
+library(tidyverse)
+library(lubridate)
+```
+
+# Import Dataset
+Import the irs_nonprofit2018 dataset. Explore it in the console and the global environment. 
+```{r}
+irs_nonprofit2018 <- read_csv("~/Desktop/R Working Directory/Datasets for playing/Nonprofit data/irs_nonprofit2018.csv") %>% mutate_if(is.character, as.factor)
+```
+
+# Outliers 
+(Credit to https://statsandr.com/blog/outliers-detection-in-r/ for some of this code.)
+
+As we consider outliers, we need to remember that there are two main types of outliers that should be distinguished: 1) mistaken data, 2) extreme values. 
+
+We also can consider that there are different definitions of what constitues an outlier. We will talk about several of them.
+
+## Review of what we know 
+We already know several ways to find outliers. One of the most straight forward is to just look at the min and max of our numeric variables. We can output all of these at once by using the summary function. 
+
+Use the summary function to look at the dataset. Do you see any outliers? How would you know? 
+```{r}
+summary(irs_nonprofit2018)
+```
+
+We can compare the third quartile with the max and the first quartile with the min. 
+
+Q: How can we tell outliers?  
+A: One indicator is when there is a particularly big gap between the third quartile and the max, and the first quartile and the min. 
+
+This is pretty inprecise however, although it's a great start. Visualization can often be more useful. Make a histogram of the asset_net_endyr variable. 
+```{r}
+irs_nonprofit2018 %>% ggplot(aes(x = asset_net_endyr)) + geom_histogram(fill = "lightblue", bins = 100) + theme_minimal()
+```
+
+Q: How can we tell if we have outliers in this variable?  
+A: We can see most of the data clustered in a really small area, but the fact that the x axis goes so much farther on both directions tell us that there are at least one data point out there. 
+
+Let's try the same data in a boxplot. 
+```{r}
+irs_nonprofit2018 %>% ggplot(aes(x = asset_net_endyr)) + geom_boxplot(fill = "lightblue") + theme_minimal()
+```
+
+Q: What does a boxplot mark as a point (outlier)?  
+A: Anything outside 1.5 times the interquartile range. 
+
+## Pulling locations from a boxplot
+Well we can definitely see outliers here, but we have no way to know exactly what they are or where they are in our dataset. That's where the following code comes in handy. 
+```{r}
+# Adjust the following code to create a vector of outliers. 
+boxplot_outliers <- boxplot.stats(irs_nonprofit2018$asset_net_endyr)$out
+
+# This then finds the indexes of those outliers. 
+outlier_indexes <- which(irs_nonprofit2018$asset_net_endyr %in% c(boxplot_outliers))
+
+# This will create a dataset of just outliers. 
+irs_nonprofit2018[outlier_indexes, ]
+
+# You can also use a mutate function to make a logical column of whether or not that row is an outlier. 
+irs_nonprofit2018 %>% 
+  mutate(outlier_asset_net_endyr = ifelse(asset_net_endyr %in% c(boxplot_outliers), TRUE, FALSE))
+```
+
+Q: Why would this mutated column be helpful?  
+A: We could use it later to filter the data, or to color elements in a plot by whether that row has an outlier.
+
+## Setting a percentile
+Maybe we don't like the 1.5 times interquartile range cutoff that is automatically supplied in the boxplot function. We can change the cutoff manually with the following code. This time let's use the formation_yr variable. 
+```{r}
+# Adjust the code below to set the boundaries for the upper and lower cut offs. 
+lower_bound <- quantile(irs_nonprofit2018$formation_yr, 0.01, na.rm = TRUE)
+upper_bound <- quantile(irs_nonprofit2018$formation_yr, 0.99, na.rm = TRUE)
+
+# This provides the indexes of outliers
+outlier_indexes <- which(irs_nonprofit2018$formation_yr < lower_bound | irs_nonprofit2018$formation_yr > upper_bound)
+
+# And makes a dataset with just outliers
+irs_nonprofit2018[outlier_indexes, ]
+
+# Mutated column 
+irs_nonprofit2018 %>% 
+  mutate(outlier_formation_yr = 
+           ifelse(formation_yr < lower_bound | formation_yr > upper_bound, TRUE, FALSE))
+```
+
+## What do we do with outliers? 
+When we encounter NAs we have a couple options. We may want to use one or the other depending on if the outliers are mistakes, and what kind of analysis we want to do. We have four main options: 
+
+1. We can try to figure out what kind of value was supposed to be in that place and replace it with that value. 
+2. We can consider them missing data and replace them with NAs. 
+3. We can try our analysis twice, once with outliers and once without to see if it makes a difference. 
+4. We can allow for extreme values in our dataset and continue on with our analysis. 
+
+Let's look at some of these options. 
+
+*Replace outliers with value.* Suppose we think that the fundraise_expense_tot_curyr values that are negative are actually meant to be positive. Write a mutate function that would coerce them to negative. (Do not overwrite the dataset).
+
+```{r}
+irs_nonprofit2018 %>% mutate(fundraise_expense_tot_curyr = abs(fundraise_expense_tot_curyr)) %>% summary()
+```
+
+*Replace them with NAs.* Create a new copy of the dataset. Use either method (boxplot or percentiles) to find the outliers in the rev_prgmservice_curyr variable. Then replace those values with NAs. How will you know if it worked? 
+```{r}
+irs_nonprofit2018_NAs <- irs_nonprofit2018
+  
+lower_bound <- quantile(irs_nonprofit2018_NAs$rev_prgmservice_curyr, 0.01, na.rm = TRUE)
+upper_bound <- quantile(irs_nonprofit2018_NAs$rev_prgmservice_curyr, 0.99, na.rm = TRUE)
+
+# This provides the indexes of outliers
+outlier_indexes <- which(irs_nonprofit2018_NAs$rev_prgmservice_curyr < lower_bound | irs_nonprofit2018_NAs$rev_prgmservice_curyr > upper_bound)
+
+# And makes a dataset with just outliers
+irs_nonprofit2018_NAs[outlier_indexes, "rev_prgmservice_curyr"] <- NA
+
+sum(is.na(irs_nonprofit2018_NAs$rev_prgmservice_curyr))
+sum(is.na(irs_nonprofit2018$rev_prgmservice_curyr))
+```
+
+*Try the analysis twice* This means we have to make an entirely new subset with no outliers. Make another new copy of the irs dataset. This time create a function (or more than one funtion) to go through and remove all rows with outliers within the percentiles of .001 and .999 from the whole dataset. 
+```{r}
+irs_nonprofit2018_no_outliers <- irs_nonprofit2018
+
+#####################
+# Version 1: lapply #
+#####################
+
+# Create blank vector 
+outlier_indexes <- vector("numeric")
+
+# Function to find outlier indexes
+remove_outliers <- function(x, upper_percent = .01, lower_percent = .99){
+  
+  # Adjust the code below to set the boundaries for the upper and lower cut offs. 
+  lower_bound <- quantile(x, upper_percent, na.rm = TRUE)
+  upper_bound <- quantile(x, lower_percent, na.rm = TRUE)
+  
+  # This provides the indexes of outliers
+  outlier_indexes <<- c(outlier_indexes, which(x < lower_bound | x > upper_bound))
+  
+}
+
+lapply(irs_nonprofit2018_no_outliers[map_lgl(irs_nonprofit2018_no_outliers, is.numeric)], 
+       function(x) remove_outliers(x, upper_percent = .001, lower_percent = .999))
+
+# Makes a dataset without outliers
+irs_nonprofit2018_no_outliers <- irs_nonprofit2018_no_outliers[-outlier_indexes, ]
+
+
+
+#######################
+# Version 1: For loop #
+#######################
+irs_nonprofit2018_no_outliers <- irs_nonprofit2018
+
+# Function to find outlier indexes
+remove_outliers2 <- function(df, upper_percent = .01, lower_percent = .99){
+  for(var in df) {
+    if(is.numeric(var)) {
+      # Adjust the code below to set the boundaries for the upper and lower cut offs. 
+      lower_bound <- quantile(var, upper_percent, na.rm = TRUE)
+      upper_bound <- quantile(var, lower_percent, na.rm = TRUE)
+      
+      # This provides the indexes of outliers
+      outlier_indexes <- which(var < lower_bound | var > upper_bound)
+      df <- df[-outlier_indexes, ]
+    }
+  }
+  return(df)
+}
+
+irs_nonprofit2018_no_outliers <- 
+  remove_outliers2(irs_nonprofit2018_no_outliers, upper_percent = .001, lower_percent = .999)
+```
+
+# Date Times
+
+## How is a date stored? 
+We will mostly deal with three different date-time formats in R: Date, POSIXct and POSIXlt. 
+
+*Date* columns are in this format: 2022-03-06 (YYYY-MM-DD). In the background they store as the number of days since Jan 1, 1970. Look at the two dates below. 
+```{r}
+as.numeric(as.Date("2022-03-06"))
+as.numeric(as.Date("1970-01-01"))
+```
+
+*POSIXct* is in this format: 2022-03-06 00:00:00. This class stores date/time values as the number of seconds since January 1, 1970 UTC. (UTC is the universal time zone which goes through Greenwich, England and the prime meridian). Note the hour is in 24 hour format not am/pm. 
+```{r}
+as.POSIXct("2020-03-06 13:04:45") 
+as.numeric(as.POSIXct("2020-03-06 13:04")) # Notice you don't have to go all the way to seconds to store in this class.
+```
+
+*POSIXlt* on the surface looks and works like POSIXct but it instead stores as a list with elements for second, minute, hour, day, month, and year. We will use POSIXct more often.
+```{r}
+date1 <- as.POSIXlt("2020-03-06 13:04:45")
+date2 <- as.POSIXct("2020-03-06 13:04:45") 
+```
+
+## Getting datetimes into the right format
+It would be great if everyone put date-times in the YYYY-MM-DD HH:MM:SS format. Unfortunately they don't, and when that is the case we need to tell R what format the date time is *currently* in. That's where the table in on the canvas page comes into play. Use that table for the following challenges. 
+```{r}
+# Let's do one together. Turn the following string into a POSIXct format. 
+date3 <- "1:35 pm, Mar. 6, 2022"
+as.POSIXct(date3, format = "%I:%M %p, %b. %d, %Y")
+
+# Put the following string into Date format. 
+"10/21/94"
+as.Date("10/21/94", format = "%m/%d/%y")
+
+# Put the following string into a POSIXlt format
+"June 18, 2009- 14:56"
+as.POSIXlt("June 18, 2009- 14:56", format = "%B %d, %Y- %H:%M")
+
+# Put the following string into Date format. Note: it will remove the time format. 
+"8:36 pm on Jan. 3, 1945"
+as.Date("Wednesday 8:36 pm on Jan. 03, 1945", format = "%A %I:%M %p on %b. %d, %Y")
+```
+
+
+## Pulling other information out of date times. 
+Once you have your date or time in a format that R can understand, you can extract all sorts of information from it using the format function. To do this you will also use the table on canvas. 
+```{r}
+# Pull the week number out of date1 (Like what week out of the year is this?)
+format(date1, "%U")
+
+# Pull out which weekday date2 is. 
+format(date2, "%A")
+
+# Pull the date in MM/DD/YYYY format out of the following string 
+"2021-12-25"
+format(as.Date("2021-12-25"), "%m/%d/%Y")
+```
+
+
+## Importing date times with readr
+One of the reasons we usually import with read_csv is that it is typically better at seeing date times than read.csv. But sometimes it still needs help. Let's look at how we do that. 
+
+Import the indianapolis_use_of_force dataset. Make the date column date format. 
+```{r}
+indianapolis_use_of_force <- read_csv("indianapolis_use_of_force.csv", 
+                  col_types = cols(occurredDate = col_date(format = "%m/%d/%y %H:%M")))
+```
+
+
+## Date times in other packages
+There are also other date time functions in other packages. The lubridate package for example has other functions that can help you extract information. Look at the following code and see if you can understand what is happening. 
+```{r}
+quarter(date1, with_year = TRUE)  # Puts this in quarter format
+am(date1) # Is this in the am? 
+dst(date2) # Is this daylight savings time?
+leap_year(date1) # Is this a leap_year
+floor_date(date2, unit = "day") # Round down to nearest unit
+round_date(date2, unit = "month") # Round to nearest unit
+ceiling_date(date2, unit = "year") # Round up to nearest unit. 
+```
+
+
+## Time zones
+As you may have noticed, R assumes the time zone is the current time zone of your computer. That may be fine, but if you are looking at the absolute time of some event it may be helpful to move a date time between time zones. Take a look at these three functions. 
+```{r}
+OlsonNames() # Lists all the time zones that are available. 
+with_tz(date1, tzone = "EST") # Converts the date time to another time zone
+force_tz(date1, tzone = "EST") # Keeps the same clock time but assigns a new time zone. 
+```
+
+
+
+

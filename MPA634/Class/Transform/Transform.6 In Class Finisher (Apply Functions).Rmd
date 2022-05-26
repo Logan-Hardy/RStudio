@@ -1,0 +1,226 @@
+---
+title: "Transform.6 In Class Finisher (Apply Functions)"
+author: "Laurel Galli-Graves"
+date: "12/23/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+```
+
+# Apply Functions (Base Package)
+Apply functions are another common way to write loops. Many of the functions in the apply family specify what type of output will be generated. 
+
+## apply()
+
+The apply function is the most fundamental type. It accepts a matrix or a dataframe. You then need to specify whether you are looping through rows (1), columns (2), or values (1,2). 
+
+Here is the basic formatting of an apply function: 
+
+apply(x, MARGIN, function)
+
+```{r}
+# Let's do a simple example where we output the mean of each column in the mtcars dataset. 
+apply(mtcars, MARGIN = 2, mean)
+
+# Notice that is shorter than typing this out in loop format and it puts it in a more helpful format 
+for (i in seq_along(mtcars)) {
+  print(mean(mtcars[[i]]))
+}
+```
+
+Q: What type of object does the apply function output? 
+A: A named vector.
+
+Q: What type of object does the for loop output? 
+A: A single value at a time. 
+
+```{r}
+# Now use the apply function to output the maximum value of every *row* in the mtcars dataset
+apply(mtcars, MARGIN = 1, max)
+```
+
+```{r}
+# Now we are going to loop through every value in the dataset and round it to zero decimal places. 
+apply(mtcars, MARGIN = c(1,2), round)
+
+# What if we want to round to one decimal place? We need to add function(x) this time.
+apply(mtcars, MARGIN = c(1,2), function(x) round(x, digits = 1))
+```
+
+Q: What type of object does it return this time? 
+A: A matrix
+
+```{r}
+# Now coerce that apply function output into a tibble
+apply(mtcars, MARGIN = c(1,2), function(x) round(x, digits = 1)) %>%  as.tibble()
+```
+
+
+```{r}
+# Notice how much more streamlined this is than our for loop version.
+mtcars1 <- mtcars
+for (i in seq_along(mtcars)){
+  for (j in seq_along(mtcars[[i]])) {
+    mtcars1[[i]][[j]] <- round(mtcars1[[i]][[j]],1)
+  }
+}
+
+mtcars1
+```
+
+```{r}
+# We can also put more complex functions into our apply function
+
+# The following function accepts a value or vector. See if you can see what it does. 
+title_round <- function(x) {
+  if (is.numeric(x)) {
+    round(x, digits = 1)
+  } else {
+    str_to_title(x)
+  }
+}
+
+# Let's try using this function on each of the columns in the mpg dataset. 
+apply(mpg, MARGIN = 2, title_round) 
+```
+
+Q: What does this output? 
+A: A character matrix. 
+
+```{r}
+# Coerce this back to a tibble. 
+apply(mpg, MARGIN = 2, title_round) %>% as.tibble()
+```
+
+Q: What happened to our column types? 
+A: They all coerced to character. 
+
+# lapply()
+The lapply function works similarly to the apply function, accept it always returns a list and doesn't have the margin argument. It will default to running through the columns if you input a dataframe. Run mpg through the lapply function using the title_round function.
+```{r}
+lapply(mpg, title_round)
+
+# Now coerce this to a tibble. 
+lapply(mpg, title_round) %>% as.tibble()
+
+```
+
+Having it coerce to a list enabled us to maintain the correct column types. 
+
+# sapply()
+The sapply function works similarly to the lapply function except if it can simplify the output to a vector, it will. Notice that it formats the following output like in the apply function. 
+```{r}
+sapply(mpg, title_round)
+sapply(mpg, title_round) %>% as.tibble()
+```
+
+```{r}
+# You can also put a complex or multifacetted function into any apply function like this
+sapply(mtcars, function(x) {
+                          print(mean(x))
+                          print(median(x))
+                          print(sd(x))
+                          }
+       )
+                
+```
+Q: What does this output? 
+A: A numeric vector
+
+# Map functions (purrr)
+The map functions work almost the same as the apply functions. They are newer however and people are moving to use them more. 
+
+Check out the documentation
+https://github.com/rstudio/cheatsheets/blob/main/purrr.pdf
+```{r}
+# With purrr functions you can drill down very specifically to the exact output you want. Let's look at an example of how this may be useful 
+num <- map_lgl(mpg, is.numeric)
+lapply(mpg[num], mean)
+```
+
+The map2 functions accept 2 vectors or lists. Take a look at an example. 
+```{r}
+num_vec <- c(1:12)
+num_vec2 <- c(13:24)
+map2_dbl(num_vec, num_vec2, ~ .x/.y)
+
+```
+
+```{r}
+# What happens if you change map2_dbl to map2_dfc?
+map2_dfc(num_vec, num_vec2, ~ .x/.y)
+```
+
+```{r}
+# Look at one more example using the paste function.
+map2_chr(num_vec, num_vec2, paste, sep = ":")
+```
+
+# Practice 
+```{r}
+# Use lapply to produce a summary of every column in the mpg dataframe
+lapply(mpg, summary)
+
+# Use map_lgl() to produce a logical vector of the mpg dataset that says whether a column is character or not. Use that vector to print the unique values of each character column in the dataset. (Use unique()). Try it using an apply function, a lapply function, and a sapply function. 
+char <- map_lgl(mpg, is.character)
+apply(mpg[char], 2, unique)
+lapply(mpg[char], unique)
+sapply(mpg[char], unique)
+```
+
+```{r}
+# Output a dataframe that goes through every value of the mtcars dataset and says whether it is greater than or equal to 7 or not. (Your whole dataframe should be logical.)
+apply(mtcars, MARGIN = c(1,2), function(x) x >= 7) %>% as.tibble()
+```
+
+```{r}
+# Feed the mtcars dataset through the descr_stats function below using one of the apply functions. 
+descr_stats <- function (vec, na.rm = TRUE) {
+  print(paste0("Mean: ", mean(vec, na.rm = na.rm)))
+  print(paste0("Median: ", median(vec, na.rm = na.rm)))
+  print(paste0("Standard Deviation: ", sd(vec, na.rm = na.rm)))
+}
+
+lapply(mtcars, descr_stats)
+```
+
+```{r}
+# Use a map function to sum every column in the mtcars dataset and return a character vector. 
+map_chr(mtcars, sum)
+```
+
+```{r}
+# Maybe the descr_table function was a little overwhelming the last time you looked at it. Now that you understand how apply functions and function are structured, see if you can read through this code and piece together how it works.
+descr_table <- function(df) {
+
+  df_num <- select_if(df, function(col) is.numeric(col) | 
+                                        is.logical(col) | 
+                                        lubridate::is.Date(col)) 
+  
+  df_fac <- select(df, setdiff(colnames(df), colnames(df_num))) 
+  none <- rep("None", ncol(df_fac))
+  
+  matrix <- matrix(nrow = ncol(df), ncol=11, dimnames = list(c(names(df_num), names(df_fac)), c("Mean","Max","Min", "Std Dev", "Median", "Kurt", "Skew", "# Missing", "# Unique", "Class", "Mode")))
+  
+  matrix[,1] <- c(sapply(df_num, function(x) round(mean(x, na.rm = TRUE), 2)), none)
+  matrix[,2] <- c(sapply(df_num, function(x) max(x, na.rm = TRUE)), none)
+  matrix[,3] <- c(sapply(df_num, function(x) min(x, na.rm = TRUE)), none)
+  matrix[,4] <- c(sapply(df_num, function(x) round(sd(x, na.rm = TRUE), 2)), none)
+  matrix[,5] <- c(sapply(df_num, function(x) median(x, na.rm = TRUE)), none)
+  matrix[,6] <- c(sapply(df_num, function(x) round(moments::kurtosis(x, na.rm = TRUE), 2)), none)
+  matrix[,7] <- c(sapply(df_num, function(x) round(moments::skewness(x, na.rm = TRUE), 2)), none)
+  matrix[,8] <- sapply(cbind(df_num, df_fac), function(x) sum(is.na(x)))
+  matrix[,9] <- as.character(sapply(cbind(df_num, df_fac), function(x) length(unique(x))))
+  matrix[,10] <- as.character(sapply(cbind(df_num, df_fac), function(x) class(x)))
+  matrix[,11] <- sapply(cbind(df_num, df_fac), function(x) names(sort(table(x),decreasing=TRUE)[1]))
+  matrix <- as.data.frame(matrix)
+  return(matrix)
+}
+
+descr_table(mtcars)
+```
+
+

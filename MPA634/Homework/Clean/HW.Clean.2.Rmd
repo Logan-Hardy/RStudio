@@ -1,0 +1,193 @@
+---
+title: "HW.Clean.2"
+author: "Logan Hardy"
+date: "02/11/2022"
+output: html_document
+---
+
+30 points (25 for this assignment, 5 for being on time)
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(tidytext)
+library(textdata)
+library(sentimentr)
+library(ggthemes)
+
+theme_new <-  theme_fivethirtyeight(base_size=12) %+replace% theme(panel.grid.major.y = element_line(colour = "grey80", size = 0.25),  panel.grid.major.x = element_blank(), panel.background = element_rect(fill = "white"), plot.background = element_rect(fill = "white"), legend.background = element_rect(fill = "white"))
+```
+
+# Import
+Import the AllTweets dataset with readr but *not with mutate_if*.
+```{r}
+AllTweets <- read_csv("../Data/AllTweets.csv")
+
+```
+Explore the dataset in the console and global environment 
+
+# Create a copy of your dataset (1 point)
+```{r}
+AllTweets_copy <- AllTweets
+
+```
+
+# Hashtags, mentions, and urls (5 points)
+Create new columns for hashtags, mentions, and urls. 
+```{r}
+AllTweets_copy <- AllTweets_copy %>% mutate(hashtags = str_extract_all(text, "(?<=^|\\s)#\\S+") %>% map_chr(~ str_c(., collapse = " ")), mentions = str_extract_all(text, "(?<=^|\\s)@\\S+") %>% map_chr(~ str_c(., collapse = " ")), urls = str_extract_all(text, "http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+") %>% map_chr(~ str_c(., collapse = " ")))
+ 
+```
+
+Then make another column that counts the number of mentions in each tweet 
+```{r}
+AllTweets_copy <- AllTweets_copy %>% mutate(mentions_count = str_count(mentions, "@"))
+```
+
+Finally, remove all hashtags, urls, and mentions from the column containing the tweet. 
+```{r}
+AllTweets_copy <- AllTweets_copy %>% mutate(text = str_replace_all(text, c("(?<=^|\\s)#\\S+" = "", "(?<=^|\\s)@\\S+" = "", "http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+" = "")))
+```
+
+# Other text editing (2 points)
+Remove punctuation, digits, and line breaks from your tweet column
+```{r}
+AllTweets_copy <- AllTweets_copy %>% mutate(text = str_replace_all(text, c("(?<=^|\\s)#\\S+" = "", 
+  "(?<=^|\\s)@\\S+" = "",
+  " http.*" = "", 
+  "[\r\n]" = "", 
+  "[:punct:]" = "",
+  "[[:digit:]]+" = "")))
+```
+
+# Count the characters (2 points)
+Create a column that counts the number of characters left in the tweet. 
+```{r}
+AllTweets_copy <- AllTweets_copy %>% mutate(tweet_char_count = nchar(text))
+```
+
+# Sentiment analysis (5 points)
+Generate sentiment columns, including mood, weighted positivity, and binary positivity columns. 
+```{r}
+sentiment_tweets <- AllTweets_copy %>% select(id, ...1, text)
+sentiment_tweets <- sentiment_tweets %>% unnest_tokens(word, text)
+
+custom_stop <- c("get", "can")
+sentiment_tweets <- sentiment_tweets %>% anti_join(get_stopwords()) %>% filter(!word %in% custom_stop)
+
+# mood / emotion 
+sentiment_tweets <- sentiment_tweets %>% 
+  full_join(get_sentiments("nrc")) %>% 
+  group_by(id, ...1, sentiment) %>% 
+  summarize(count = n()) %>% 
+  na.omit() %>% 
+  pivot_wider(names_from = sentiment, values_from = count) %>% 
+  mutate(across(everything(), ~replace_na(.x, 0))) %>% 
+  ungroup() %>% 
+  full_join(sentiment_tweets)
+
+# weighted positivity
+sentiment_tweets <- 
+sentiment_tweets %>% 
+  full_join(get_sentiments("afinn")) %>% 
+  group_by(id, ...1) %>% 
+  summarize(positivity_weights = mean(value, na.rm = TRUE)) %>% 
+  ungroup() %>% 
+  full_join(sentiment_tweets)
+
+# binary positivity 
+sentiment_tweets <- 
+sentiment_tweets %>% 
+  full_join(get_sentiments("bing")) %>% 
+  group_by(id, ...1, sentiment) %>% 
+  summarize(count = n()) %>% 
+  na.omit() %>% 
+  pivot_wider(names_from = sentiment, values_from = count) %>% 
+  mutate(across(c(positive, negative), ~replace_na(.x, 0)), 
+         positivity_binary = (positive - negative)/sum(positive, negative, na.rm = TRUE)) %>% 
+  ungroup() %>% 
+  select(-positive, -negative) %>% 
+  full_join(sentiment_tweets)
+
+AllTweets_copy <- 
+  sentiment_tweets %>% select(-word) %>% 
+    distinct() %>% # Removes all duplicate rows
+    full_join(AllTweets_copy, by = c("id", "...1")) 
+```
+
+
+# Summarize (4 points)
+This dataset, unlike the one we saw before, has fewer people tweeting in it. Make two different summary tables that show information of your choosing grouped by the text author. Then write a quick one sentence description of what your table tells you. 
+
+Table 1
+```{r}
+AllTweets_copy %>% 
+  group_by(author) %>% 
+  summarize(avg_positivity_weights = mean(positivity_weights, na.rm = TRUE)) %>% arrange(desc(avg_positivity_weights))
+
+
+
+
+```
+
+Write-up: This table tells us the average positivty weights of texts by these authors.
+
+Table 2
+```{r}
+AllTweets_copy %>% 
+  group_by(author) %>% 
+  summarize(avg_tweet_length = mean(tweet_char_count, na.rm = TRUE)) %>% arrange(avg_tweet_length)
+
+```
+
+Write-up: This table tells us the average tweet length, or character count, by these authors. 
+
+Interesting side note: when comparing these two tables, it would appear that they are related and there is a negative correlation between the two where shorter tweets tend to have a higher weighted positivity.  
+
+
+# Visualize (6 points)
+Similarly to the last section, make two visualizations from this data. Try to find something illuminating about these authors. You can compare all author or choose a few. Use your dplyr knowledge as useful to filter, group_by, summarize, or otherwise adjust the data to enhance your graphs. Write a one sentence description of the graph findings below each. I recommend importing theme_new or using a default theme to enhance the graph aesthetic. 
+
+Graph 1
+```{r}
+AllTweets_copy %>% 
+  group_by(author) %>%  ggplot(aes(x = joy, fill = author)) + 
+      geom_bar(position = "fill", width = 1) +
+      labs(title = "Proportion of tweets with joy words by author", 
+          subtitle = "Notice the type of people who have the most joy words") +
+      theme_new
+```
+
+Write-up: This chart was interesting because there is a trend where politicians (Donald Trump, Hilary Clinton, and Barack Obama) tend to have more joy words than other authors
+
+Graph 2
+```{r}
+AllTweets_copy %>% 
+        ggplot(aes(x = tweet_char_count, y = author, fill = mentions_count)) + 
+        geom_boxplot(outlier.alpha = .1) +
+        labs(title = "Tweet Length Boxplot by Author", 
+            subtitle = "Pay Attention to the Type of Author with longer texts", 
+            x = "") +
+        theme_new + 
+        theme(axis.title = element_text(size = 10, color = "grey40"),
+              axis.title.x = element_text(hjust = .02, vjust = .4),
+              legend.position = "none")
+
+```
+
+Write-up: It's interesting how some of these "well-learned" individuals tend to have longer tweet lengths like RichardDawkins, deGrasseTyson, NASA, Hilary Clinton, and Donald Trump
+
+--End--
+
+# Optional feedback: 
+
+How hard was this assignment? Was it: too hard, too easy, or just right? 
+
+ANSWER: Too Hard
+
+Approximately how long did this assignment take you? 
+
+ANSWER: 6 hours
+
+

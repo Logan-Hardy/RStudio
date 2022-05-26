@@ -1,0 +1,357 @@
+---
+title: 'Final Project: Modeling Project with Cars Data'
+author: "Logan Hardy"
+date: "4/18/2022"
+output: 
+  html_document:
+    toc: yes
+    toc_float: yes
+---
+
+# Introduction
+The data used in this study was obtained from Kaggle, an online data repository for users to easily share informative datasets with others.  The link to this specific data is provided: https://www.kaggle.com/datasets/uciml/autompg-dataset.  This dataset was originally published by the StatLib library, which is maintained by Carnegie Mellon University in July 1993.
+
+Included is part of the path I took to clean, transform, and explore the data to discover intriguing findings and provide relevant recommendations.
+
+```{r setup, include=FALSE}
+# Set up 
+# Import libraries and set graph theme 
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(ggthemes)
+library(caret)
+library(VIM)
+
+# Create custum theme 
+theme_new <-  theme_fivethirtyeight(base_size=12) %+replace% theme(panel.grid.major.y = element_line(colour = "grey80", size = 0.25),  panel.grid.major.x = element_blank(), panel.background = element_rect(fill = "white"), plot.background = element_rect(fill = "white"), legend.background = element_rect(fill = "white"))
+
+```
+
+
+# Data
+
+The data I will be using comes from a mpg dataset 
+
+MPG - Vehicle's miles-per-gallon average 
+Cylinders - number of cylinders a vehicle has 
+Displacement - Engine displacement/area 
+Horse_Power - Vehicle's horse power 
+Weight - Weight of vehicle (lbs) 
+Acceleration - avg time in seconds to accelate to 60 mph 
+Model_year - year built 
+Name - vehicle name 
+
+
+```{r}
+# Load data and make copy
+mpg <- read_csv("../Data/mpg.csv")
+mpg_copy <- mpg
+
+```
+
+# Cleaning
+
+I coerced cylinders to be an ordered factor and I eliminated columns/rows that were all NAs (data that’s not available). 
+
+```{r}
+## Explore.2 
+# Coerce one variable into a more correct format.
+
+# Coerce cylinders into ordered factor 
+mpg_copy <- mpg_copy %>% mutate(Cylinders = as.ordered(Cylinders))
+summary(mpg_copy)
+```
+
+
+```{r}
+## Clean.1 & Transform.5
+#Write one custom function and Use at least 2 of the NA techniques we learned
+
+# Function to eliminate all NAs in a dataframe
+eliminate_all_NAs <- function(df) {
+  # Get rid of Columns that only have NAs / that are empty
+  empty_columns <- colSums(is.na(df)) == nrow(df)
+  df <- df[, !empty_columns]
+  
+  # Get rid of rows with NAs 
+  df <- df %>% na.omit()
+  
+  return(df)
+}
+
+# Call function to eliminate all NAs from dataframe 
+mpg_copy <- eliminate_all_NAs(mpg_copy)
+
+```
+
+```{r}
+## Transform 3 
+# You must provide well designed graphs of your data. Each must be well labeled and have some sort of default or custom theme applied.
+
+mpg <- mpg %>% mutate(Cylinders = as.factor(Cylinders))
+
+# Boxplot of pet lisence types
+mpg %>% 
+        ggplot(aes(x = fct_reorder(Cylinders, MPG, median, na.rm = TRUE), y = MPG, fill = Cylinders)) + 
+        geom_boxplot(outlier.alpha = .1) +
+        labs(title = "Boxplot of Cylinders and MPG", 
+            subtitle = "Notice how 4 cylinders have highest MPG", 
+            x = "") +
+        theme_new + 
+        theme(axis.title = element_text(size = 10, color = "grey40"),
+              axis.title.x = element_text(hjust = .02, vjust = .4),
+              legend.position = "none")
+
+```
+
+
+
+```{r}
+## Transform.6
+
+# Find average/median numbers of MPG by cylinders 
+mpg %>% select(MPG, Cylinders) %>% group_by(Cylinders) %>% summarise(mean = mean(MPG), median = median(MPG))
+
+```
+
+
+
+```{r}
+## Transform 1&2
+# Use the following functions - filter, mutate, select, summarize, group_by, arrange. (May be helpful after cleaning)
+
+# Fiter 
+# Filter to see acceleration greater than 20 
+mpg_reduced <- mpg_copy %>% filter(Acceleration > 20) 
+
+# Mutate
+# create new column that is the ratio of horse_power to displacement 
+mpg_copy <- mpg_copy %>% mutate(hp_per_displacement = 
+(Horse_Power /Displacement))
+
+```
+
+create linear models as a starting point 
+Initial R-squared:  0.8142,	Adjusted R-squared:  0.8108 
+
+
+```{r}
+mpg_copy <- mpg_copy %>% select(-Name)
+mpg_copy <- mpg_copy %>% mutate(Cylinders = as.numeric(Cylinders))
+model <- lm(MPG~.,mpg_copy) 
+summary(model)
+
+predicted <- predict(model)
+actual <- mpg_copy$MPG
+
+# cbind them together, then pipe into as_tibble(). Mutate the other columns, and save the dataset as model_accuracy.
+model_accuracy <- cbind(predicted, actual) %>% 
+  as_tibble() %>% 
+  mutate(difference = predicted-actual, 
+         abs_difference = abs(difference), 
+         sqr_difference = difference*difference)
+
+RMSE(predicted, actual)
+MAE(predicted, actual)
+
+
+normalize <- function(x) {
+    return((x- min(x, na.rm = TRUE)) /(max(x, na.rm = TRUE)-min(x, na.rm = TRUE)))
+}
+
+min_max <- as.data.frame(lapply(mpg_copy, normalize))
+model_min_max <- lm(MPG~.,min_max) 
+summary(model_min_max)
+
+```
+
+
+
+```{r}
+# Split data into train and test groups 
+
+source("../Homework/Predict/preprocessing_functions.R")
+
+set.seed(21)
+sample <- trainIndex <- createDataPartition(mpg_copy$MPG, p = .85, 
+                                  list = FALSE, 
+                                  times = 1)
+train <- mpg_copy[sample,]
+test <- mpg_copy[-sample,]
+
+```
+
+
+
+```{r}
+# Process train and test data (eliminated 4 columns)
+
+train_processed <- train %>% 
+  remove_empty() %>% 
+  lump_factors(label = MPG, remove_label = FALSE) %>%
+  impute() %>% 
+  remove_near_zero() %>% 
+  remove_linear_combos() %>% 
+  remove_correlated() 
+
+test_processed <- test %>% 
+  remove_empty() %>% 
+  lump_factors(label = MPG, remove_label = FALSE) %>%
+  impute() %>% 
+  select(colnames(train_processed))
+```
+
+Supervised learning using neural networks 
+Label = MPG 
+
+```{r}
+
+# Lasso
+model_lasso <- classification_train(train_processed, "MPG", method = "lasso")
+# Linear Regression
+model_lm <- classification_train(train_processed, "MPG", method = "lm")
+# Elasticnet
+model_enet <- classification_train(train_processed, "MPG", method = "enet")
+
+library(brnn)
+library(neuralnet)
+
+# brnn
+model_brnn <- classification_train(train_processed, "MPG", method = "brnn")
+# neuralnet
+model_nn <- classification_train(train_processed, "MPG", method = "neuralnet")
+
+```
+
+```{r}
+# Accuracy of lda model
+predicted <- predict(model_lasso, test_processed)
+print(paste0("RMSE: ", round(RMSE(predicted, test_processed$MPG), 3), "   MAE: ", 
+round(MAE(predicted, test_processed$MPG), 3)))
+
+# Accuracy of random forest model
+predicted <- predict(model_lm, test_processed)
+print(paste0("RMSE: ", round(RMSE(predicted, test_processed$MPG), 3), "   MAE: ", 
+round(MAE(predicted, test_processed$MPG), 3)))
+
+# Accuracy of svm model
+predicted <- predict(model_enet, test_processed)
+print(paste0("RMSE: ", round(RMSE(predicted, test_processed$MPG), 3), "   MAE: ", 
+round(MAE(predicted, test_processed$MPG ), 3)))
+
+
+# Accuracy of lda model
+predicted <- predict(model_brnn, test_processed)
+print(paste0("RMSE: ", round(RMSE(predicted, test_processed$MPG), 3), "   MAE: ", 
+round(MAE(predicted, test_processed$MPG), 3)))
+
+# Accuracy of random forest model
+predicted <- predict(model_nn, test_processed)
+print(paste0("RMSE: ", round(RMSE(predicted, test_processed$MPG), 3), "   MAE: ", 
+round(MAE(predicted, test_processed$MPG), 3)))
+
+
+```
+
+```{r}
+#create train and test data for categorization 
+
+train_processed <- train %>% dplyr::select(-Cylinders) %>%
+  remove_empty(cutoff = 0.40) %>% 
+  impute(method = "median") %>% 
+  remove_near_zero(print_results = TRUE) %>% 
+  remove_linear_combos(print_results = TRUE) %>% 
+  remove_correlated(cutoff = 0.78, print_results = TRUE) %>% 
+  replace_label(train, Cylinders) 
+
+test_processed <- test %>% dplyr::select(-Cylinders) %>%
+  remove_empty(cutoff = 0.40) %>% 
+  impute(method = "median") %>% 
+  remove_near_zero(print_results = TRUE) %>% 
+  replace_label(test, Cylinders) %>% 
+  dplyr::select(colnames(train_processed))
+```
+
+
+
+Unsupervised learning using random forest
+3 clusters 
+
+
+```{r}
+
+library(randomForest)
+library(pamr)
+
+rf2 <- randomForest(x = mpg_copy, mtry = 3, ntree = 2000, proximity = TRUE)
+rf2
+
+prox <- rf2$proximity
+pam.rf <- pam(prox, 3)
+pred <- cbind(pam.rf$clustering, mpg_copy$Cylinders)
+table(pred[,2], pred[,1])
+
+Clusters <- as.factor(pam.rf$cluster)
+
+mpg_copy %>% 
+        ggplot(aes(x = Cylinders, y = MPG, color = Clusters, shape = Clusters)) + 
+        geom_point(alpha = .1, position = "jitter") + 
+        ylim(0, 50) +
+        labs(title = "Scatterplot of Cylinders and MPG \nColored by RF Clusters", 
+            subtitle = "Note how the clusters seem to have cut data similar to MPG", 
+            x = "Cylinders", 
+            y = "MPG") +
+        theme_new + 
+        theme(axis.title = element_text(size = 10, color = "grey40"), 
+              legend.position = "right", 
+              legend.direction = "vertical")
+
+```
+Here I compared the clustering of hclust and random forest.  Both produced very similar results with minor differences
+
+```{r}
+# Make a distance matrix 
+d <- dist(mpg_copy)
+
+# cluster using hclust
+fitH <- hclust(d)
+clusters <- cutree(fitH, k = 3) 
+
+# cluster using hclust
+plot(mpg_copy[1:5], col = clusters)
+
+# cluster using random forrest
+plot(mpg_copy[1:5], col = Clusters)
+```
+
+
+# Findings
+
+In conclusion, I was able to determine that car characteristics like cylinders, displacement, horsepower, weight, acceleration, and model year could be used to estimate and predict a vehicle’s miles-per-gallon (MPG).  When doing this, our model explains 68.2% of the variation seen in the percentage change of MPG using a neural network algorithm.  Therefore, I was able to determine that these car characteristics, as previously mentioned, show that they provide great predictions on future data as they affect a vehicle’s miles-per-gallon (MPG).  
+Unsupervised learning by grouping these vehicles into clusters as also effective using a random forest clustering. 
+
+
+# Limits and Conclusion 
+
+This study is limited by lack of data. If we were able to gather more observational data, we would be better able to make predictions and have a stronger analysis on the MPG of vehicles. 
+
+A caveat to the data being used is we are unaware if any randomization occurred when selecting which vehicles to include in this study, though it is doubtful that any of these vehicles were chosen completely at random from among the general population.  Thus, the statistical results of this particular dataset only refer to the vehicles used in this study, while some generalizations may be applied to vehicles as a whole.  
+
+
+
+
+--End--
+
+How hard was this assignment? Was it: too hard, too easy, or just right? 
+
+ANSWER: Just Right
+
+Approximately how long did this assignment take you? 
+
+ANSWER: 7 hours
+
+
+

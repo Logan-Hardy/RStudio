@@ -1,0 +1,98 @@
+---
+title: "HW.Explore.2"
+author: "Logan Hardy"
+date: "1/11/2022"
+output: html_document
+---
+
+20 points (15 for this assignment, 5 for being on time)
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+```
+
+# Import the data (2 points)
+Import the data using the third method we used in the in class file (readr with character to factor conversion) 
+
+*Optional* To get the date time column (Timestamp) in the right format, add a comma after the filepath and paste in the code: 
+col_types = cols(Timestamp = col_datetime(format = "%Y-%m-%d %H:%M:%S")) 
+before the closing parenthesis. 
+
+```{r}
+mental_health_tech_survey <- read_csv("../Data/mental_health_tech_survey.csv", col_types = cols(Timestamp = col_datetime(format = "%Y-%m-%d %H:%M:%S"))) %>% mutate_if(is.character, as.factor)
+
+
+```
+
+# Explore the data using the view tab (1 point)
+Click on the tab in RStudio that says mental_health_tech_survey.
+
+Q: Based on what you see, which column(s), if any, are unstructured data? 
+A: Comments
+
+# Explore the data with str() (3 points)
+```{r}
+str(mental_health_tech_survey)
+```
+
+Q: How many rows and columns are there? 
+A: Rows: 1259, columns: 27
+
+Q: What level of measurement is the no_employees column? (This stands for number of employees.)
+A: Factor with 6 levels 
+
+Q: What would be the appropriate data type for this column?
+A: Order factor 
+
+# Explore the data with head() (2 points)
+Use head to show you the top ten rows. (you will have to use n=)
+```{r}
+head(mental_health_tech_survey, n=10)
+```
+
+Q: How many countries are represented in the first ten rows of data? 
+A: 3
+
+Q: One of the respondents in this first ten rows works at a company with more than 1000 employees. What is the gender of this person? 
+A: M (Male)
+
+# Explore the data with summary() (5 points)
+```{r}
+summary(mental_health_tech_survey)
+```
+
+Q: How many NAs are in the comments column? 
+A: 1096
+
+*Note*: The column "supervisor" is a response to the question: Would you be willing to discuss a mental health issue with your direct supervisor(s)? The "coworkers" column similarly answers "Would you be willing to discuss a mental health issue with your coworkers?".  
+
+Q: Are fewer people willing to discuss a mental health issue with their supervisor or coworkers? Compare how many people said "no" to these questions. 
+A: supervisors
+
+Q: What is the most common state represented in the survey? 
+A: CA (California)
+
+Q: What is the median age in the dataset? (hint: this may show up in scientific notation, which means you may need to move the decimal place to the right.)
+A: 31
+
+Q: How many rows of missing data are there in the self employeed column? 
+A: 18
+
+# Coerce the data type (2 points)
+Coerce the comment column to a character data type. 
+
+```{r}
+mental_health_tech_survey$comments <- as.character(mental_health_tech_survey$comments)
+```
+
+
+# Optional feedback: 
+
+How hard was this assignment? Was it: too hard, too easy, or just right? 
+
+ANSWER: Just right
+
+Approximately how long did this assignment take you? 
+
+ANSWER: 2.5 hours

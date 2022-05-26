@@ -1,0 +1,419 @@
+---
+title: 'Report 1: Explore, Transform, Clean'
+author: "Logan Hardy"
+date: "3/04/2022"
+output: 
+  html_document:
+    toc: yes
+    toc_float: yes
+---
+
+# Introduction
+This report is based on data of lost, found, and adoptable pets in King county, Washington. Included is part of the path I took to clean, transform, and explore the data to discover intriguing findings and provide relevant recommendations.
+
+```{r setup, include=FALSE}
+# Set up 
+# Import libraries and set graph theme 
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(ggthemes)
+library(sentimentr)
+library(textdata)
+library(tidytext)
+library(lubridate)
+library(wordcloud2)
+
+# Create custum theme 
+theme_new <-  theme_fivethirtyeight(base_size=12) %+replace% theme(panel.grid.major.y = element_line(colour = "grey80", size = 0.25),  panel.grid.major.x = element_blank(), panel.background = element_rect(fill = "white"), plot.background = element_rect(fill = "white"), legend.background = element_rect(fill = "white"))
+
+```
+
+
+# Data
+
+The data I will be using comes from King county, WA which is broken down into four datasets: 
+
+  1.  King_County_pet_licenses
+        - Number of pet licenses issued (ex. 138)
+        - Year they were issued (ex. 2020)
+        - Type of pet license (ex. Service Animal)
+        
+  2.  King_County_licenses_redeemed
+        - Number of spays/neuters  (ex. 17)
+        - Year they occured (ex. 2020)
+        - Type of license (ex. Issued or Redeemed)
+        
+  3. King_County_stats
+        - Year (ex. 2016)
+        - Statistic description (ex. Number of animals adopted) 
+        - Statistics for that description and year (ex. 513)
+        
+  4. King_CountyWA_animal_shelter
+        - Animal information (ex. Animal_ID, age, breed, description) 
+        - Date lost, found, or adoptable (ex. 2021-12-28 12:00:00)
+        - Impound number and current location (ex. K21-142594, In RASKC Home)
+
+```{r}
+# Load data and make copies 
+load("../Data/King_County.RData")
+King_County_pet_licenses_COPY <- King_County_pet_licenses
+King_County_licenses_redeemed_COPY <- King_County_licenses_redeemed
+King_County_stats_COPY <- King_County_stats
+King_CountyWA_animal_shelter_COPY <- King_CountyWA_animal_shelter
+
+
+```
+
+# Cleaning
+
+I cleaned the data by pivoting, or changing the shape of some of the datasets from wide to long format to better analyze it.  I also eliminated columns/rows that were all NAs (data that’s not available) and expanded the Memo (unstructured data) by creating 14 new columns that describe words/feelings found in the cell as well as the overall positivity weight of the text. This was done to extract more information from that column that we can use.  
+
+```{r}
+## Explore.2 
+# Coerce one variable into a more correct format.
+
+# Coerce Image and Memo from factor to character
+King_CountyWA_animal_shelter_COPY <- King_CountyWA_animal_shelter_COPY %>% mutate(Image = as.character(Image), Memo = as.character(Memo))
+
+```
+
+
+
+
+```{r}
+## Clean.1 & Transform.5
+#Write one custom function and Use at least 2 of the NA techniques we learned
+
+# Function to eliminate all NAs in a dataframe
+eliminate_all_NAs <- function(df) {
+  # Get rid of Columns that only have NAs / that are empty
+  empty_columns <- colSums(is.na(df)) == nrow(df)
+  df <- df[, !empty_columns]
+  
+  # Get rid of rows with NAs 
+  df <- df %>% na.omit()
+  
+  return(df)
+}
+
+# Call function to eliminate all NAs from dataframe 
+King_County_licenses_redeemed_COPY <- eliminate_all_NAs(King_County_licenses_redeemed_COPY)
+King_County_pet_licenses_COPY <- eliminate_all_NAs(King_County_pet_licenses_COPY)
+King_County_stats_COPY <- eliminate_all_NAs(King_County_stats_COPY)
+
+# Change NAs in State to WA (They should all be in Washington)
+King_CountyWA_animal_shelter_COPY <- King_CountyWA_animal_shelter_COPY %>% mutate(State = ifelse(is.na(State), "WA", as.character(State)))
+
+```
+
+
+```{r}
+## Transform.6
+# Write one apply or purrr (map) function (can be used to complete another of these tasks)
+
+# purr (map)
+King_CountyWA_animal_shelter_COPY$Latitude_Longitude <-  map2_chr(King_CountyWA_animal_shelter_COPY$obfuscated_latitude, King_CountyWA_animal_shelter_COPY$obfuscated_longitude, ~ paste0(.x, ' ', .y))
+
+# Apply
+# Find average number of issues vs redeemed 
+King_County_licenses_redeemed_COPY %>% select(!`Number of spay or neuter vouchers issued and redeemed`) %>% apply(1, mean)
+
+```
+
+
+
+```{r}
+## Clean.2
+# Generate at least 3 new variables from the Memo text variable using our string techniques (14 new variables generated from Memo text variable: 3 from str_detect, 10 from sentiment words, 1 from positivity weight)
+
+# Create variables to see if memo contains "skinny", "collar", or "happy"
+King_CountyWA_animal_shelter_COPY <- King_CountyWA_animal_shelter_COPY %>% mutate(contains_skinny = str_detect(str_to_lower(Memo), "skinny"), contains_collar = str_detect(str_to_lower(Memo), "collar"), contains_happy = str_detect(str_to_lower(Memo), "happy")) 
+
+
+# Get average positivity weight sentiment and word sentiments from "Memo"
+
+# Get sentiment word list and custom stop words
+sentiment_df <- King_CountyWA_animal_shelter_COPY %>% select(Animal_ID, Obfuscated_Address, Age, Memo)
+sentiment_df <- sentiment_df %>% 
+                unnest_tokens(word, Memo)
+custom_stop <- c("get", "can", "received", "</p>", "description", "p", "s", "loation", "date", "year")
+
+sentiment_df <- sentiment_df %>% anti_join(get_stopwords()) %>% 
+filter(!word %in% custom_stop)
+
+#group dataframe back into original form with sentiment word columns 
+sentiment_df <- sentiment_df %>% 
+  full_join(get_sentiments("nrc")) %>% 
+  group_by(Animal_ID, Obfuscated_Address, Age, sentiment) %>% 
+  summarize(count = n()) %>% 
+  na.omit() %>% 
+  pivot_wider(names_from = sentiment, values_from = count) %>% 
+  mutate(across(everything(), ~replace_na(.x, 0))) %>% 
+  ungroup() %>% 
+  full_join(sentiment_df)
+
+#group dataframe back into original form with positivity weights column 
+sentiment_df <- 
+sentiment_df %>% 
+  full_join(get_sentiments("afinn")) %>% 
+  group_by(Animal_ID, Obfuscated_Address, Age) %>% 
+  summarize(positivity_weights = mean(value, na.rm = TRUE)) %>% 
+  ungroup() %>% 
+  full_join(sentiment_df)
+
+#merge all of the sentiment columns with King_CountyWA_animal_shelter_COPY
+King_CountyWA_animal_shelter_COPY <- sentiment_df %>% select(-word) %>% distinct() %>% # Removes all duplicate rows
+    inner_join(King_CountyWA_animal_shelter_COPY, by = c("Animal_ID", "Obfuscated_Address", "Age")) 
+
+```
+
+
+```{r}
+## Clean.3
+# Clean up at least 1 complex factor (Age, animal breed, or animal color would be a good choice)
+
+# Reduce number of leveles/factors of animal breeds to just those that are found at least 5 times in the dataset
+King_CountyWA_animal_shelter_COPY <- King_CountyWA_animal_shelter_COPY %>% mutate(Animal_Breed = fct_lump_min(Animal_Breed, min = 5))
+
+```
+
+
+```{r}
+## Clean.4
+# Use at least 2 of the reshaping techniques we learned
+
+# Reshape from wide to long 
+King_County_licenses_redeemed_COPY <-
+King_County_licenses_redeemed_COPY %>% 
+  pivot_longer(cols = c("2021":"2013"), 
+               names_to = "Year", 
+               values_to = "Number of Spays/Neuters")
+
+King_County_pet_licenses_COPY <-
+King_County_pet_licenses_COPY %>% 
+  pivot_longer(cols = c("2021":"2013"), 
+               names_to = "Year", 
+               values_to = "Number of Pet Licenses")
+
+King_County_stats_COPY <- King_County_stats_COPY %>% select(!Row)
+King_County_stats_COPY <-
+King_County_stats_COPY %>% 
+  pivot_longer(cols = c("2021":"2013"), 
+               names_to = "Year", 
+               values_to = "Statistic")
+
+# Reshape from long to wide 
+King_County_stats_COPY <-
+King_County_stats_COPY %>% 
+  pivot_wider(names_from = `Statistic Description`, values_from = c(Statistic))
+
+# Split impound_no variable into two: Building and Home_Number
+King_CountyWA_animal_shelter_COPY <- King_CountyWA_animal_shelter_COPY %>% separate(impound_no, sep = "-", into = c("Building", "Home_Number"), remove=FALSE) 
+
+```
+
+
+```{r}
+## Clean.5
+# Make sure any date-times are in numeric format. (if years), or date or POSIXct if full dates (This doesn’t count as your Explore.2 data conversion). Generate 1 new date time column from existing date times. Use 1 outlier technique to check for outliers in a numeric column.
+
+# Cast Year as numeric
+King_County_stats_COPY$Year <- as.numeric(King_County_stats_COPY$Year)
+
+King_County_licenses_redeemed_COPY$Year <- as.numeric(King_County_licenses_redeemed_COPY$Year)
+
+King_County_pet_licenses_COPY$Year <- as.numeric(King_County_pet_licenses_COPY$Year)
+
+
+# Cast Date as POSIXct 
+King_CountyWA_animal_shelter_COPY$Date <- King_CountyWA_animal_shelter_COPY$Date %>% as.POSIXct(format="%m/%d/%Y %H:%M:%S %p")
+
+# Add day of the week, Month, and date numeric as new columns
+King_CountyWA_animal_shelter_COPY <- King_CountyWA_animal_shelter_COPY %>% mutate(Weekday = as.factor(format(Date, "%A")), Month = as.factor(format(Date, "%B")), Date_Number = as.numeric(Date))
+
+
+# Check to see if there are outliers in Date_Number by observing histogram
+King_CountyWA_animal_shelter_COPY %>% ggplot(aes(x = Date_Number)) + geom_histogram(fill = "#afd7db", bins = 10) +
+        labs(title = "Histogram of Date_Number", 
+            subtitle = "Notice how the min greatly pulls the graph to the left and there should be \n10 bins, but the other counts are too small to see", 
+            y = "Count", 
+            x = "Date_Number") +
+        theme_new #+ theme(axis.title = element_text(size = 10, color = "grey40"))
+
+# Find Date_Number and outliers 
+boxplot_outliers_date <- boxplot.stats(King_CountyWA_animal_shelter_COPY$Date_Number)$out
+boxplot_outliers_euthanized_temp <- boxplot.stats(King_County_stats_COPY$`Number of animals euthanized due to a determination of vicious temperament`)$out
+
+
+# Create a new column that says whether there are outliers in that Date_Number column and same for number of animals euthanized for vicious temperment. 
+King_CountyWA_animal_shelter_COPY <- King_CountyWA_animal_shelter_COPY %>% 
+  mutate(Date_Outlier = ifelse(Date_Number %in% c(boxplot_outliers_date), TRUE, FALSE))
+King_County_stats_COPY <- King_County_stats_COPY %>% 
+  mutate(Euthanized_For_Temperament_Outlier = ifelse(`Number of animals euthanized due to a determination of vicious temperament` %in% c(boxplot_outliers_euthanized_temp), TRUE, FALSE))
+
+
+
+```
+
+
+
+```{r}
+## Transform 1&2
+# Use the following functions - filter, mutate, select, summarize, group_by, arrange. (May be helpful after cleaning)
+
+# Fiter 
+# Filter to see Number of Spays/Neuters greater than 10, that's my imaginary goal
+licenses_reduced <- King_County_licenses_redeemed_COPY %>% filter(`Number of Spays/Neuters` > 10) 
+
+# Select and Mutate
+# Select statistics regarding animals euthanized and include a new column that is the ratio of animals euthanized because of vicoius behavior  
+Euthanization_statistics <- King_County_stats_COPY %>% select(Year, contains("euthanized") & !Euthanized_For_Temperament_Outlier) %>% mutate(vicious_euthanization_ratio = 
+(`Number of animals euthanized due to a determination of vicious temperament`/`Number of animals euthanized`))
+
+
+# summarize, group_by, and arrange 
+# count number of animals for each building 
+Building_count <- King_CountyWA_animal_shelter_COPY %>% group_by(Building) %>% summarize(count=n()) %>% arrange(desc(count))
+
+```
+
+
+# Findings
+
+The first visualization shows how the majority of animals are not spayed/neutered yet the next graph shows that the largest group of licenses are for spayed/neutered animals.  This is interesting because it might imply that animals that have been spayed/neutered are less likely to be lost, found, or adoptable which may be because they are already in good homes.    
+
+The third visualization shows the number of issued vs redeemed spay/neuter vouchers, where in an ideal world, these would be the same.  Further research should be done to discover why people aren’t redeeming these vouchers they have been issued.  
+
+Also included is a word graph which shows the number of times a word appears in the Memo with larger words appearing more often.  Interesting how many mention pets near 12thand  64th streets, which could be high pet population areas or something that attracts them there like a dog park.  
+
+The last visualization shows the ratio of animals euthanized by owners request over time, and as can be seen, it has been increasing. This is alarming because this does not include animals euthanized because of vicious temperament, extreme illness, or bad behaviors.  
+
+
+
+```{r}
+## Transform 3 
+# You must provide three unique, well designed graphs of your data. Each must be well labeled and have some sort of default or custom theme applied.
+
+# Bar Graph of Animal_Genders
+King_CountyWA_animal_shelter_COPY %>% ggplot(aes(x = Animal_Gender, fill = Animal_Gender)) + 
+        geom_bar() +
+        labs(title = "Bar Graph of Animal_Genders", 
+            subtitle = "Most are not Spayed/Neutered") +
+        theme_new
+
+# Boxplot of pet lisence types
+King_County_pet_licenses_COPY %>% ggplot(aes(x = fct_reorder(`Number and type of pet licenses issued`, `Number of Pet Licenses`, median, na.rm = TRUE), y = `Number of Pet Licenses`, fill = `Number and type of pet licenses issued`)) + 
+        geom_boxplot(outlier.alpha = 1) +
+        labs(title = "Boxplot of pet licenses", 
+            subtitle = "Spayed/Neutered licenses make up more than the others combined", 
+            x = "") +
+        theme_new + 
+        theme(axis.title = element_text(size = 10, color = "grey40"),
+              axis.title.x = element_text(hjust = .02, vjust = .4),
+              axis.text.x = element_text(angle = 30),
+          
+              legend.position = "none", )
+
+
+# Boxplot of Redeemed and Issued of Spay/Neuter vouchers
+King_County_licenses_redeemed_COPY %>% ggplot(aes(x = fct_reorder(`Number of spay or neuter vouchers issued and redeemed`, `Number of Spays/Neuters`, median, na.rm = TRUE), y = `Number of Spays/Neuters`, fill = `Number of spay or neuter vouchers issued and redeemed`)) + 
+        geom_boxplot(outlier.alpha = 1) +
+        labs(title = "Boxplot of Redeemed and Issued of \nSpay/Neuter vouchers", 
+            subtitle = "Note how many more are issued compared to redeemed", 
+            x = "") +
+        theme_new + 
+        theme(axis.title = element_text(size = 10, color = "grey40"),
+              axis.title.x = element_text(hjust = .02, vjust = .4),
+              legend.position = "none")
+
+```
+
+### Word Cloud: Words in Memo (Larger words are more frequent)
+#### Notice the common streets animals are lost or found on
+
+```{r}
+# Create wordcloud from Memo words 
+colors <- c("#BE4422", "#497BB8", "#FBB861", "#8B99B6")
+
+# Get words and counts from Memo column and store in a new df
+sentiment_df <- King_CountyWA_animal_shelter_COPY %>% select(Memo)
+sentiment_df <- sentiment_df %>% 
+                unnest_tokens(word, Memo)
+custom_stop <- c("get", "can", "received", "</p>", "description", "p", "s", "loation", "date", "year")
+
+sentiment_df <- sentiment_df %>% anti_join(get_stopwords()) %>% filter(!word %in% custom_stop)
+
+sentiment_df <- sentiment_df %>% mutate(word = as.factor(word))
+
+# Create df consisting of all the words found in the Memo and their counts  
+df <- sentiment_df %>% group_by(word) %>%  summarize(count=n()) %>% filter(count > 10) %>% arrange(desc(count)) 
+
+
+# Create wordcloud 
+wordcloud2(df, rotateRatio = 0, 
+           color = rep_len(colors, nrow(df)), 
+           background = "#ffffff")
+
+# Scatterplot of ratio of animals euthanized by owners request over time 
+Euthanization_statistics %>% 
+        ggplot(aes(x = Year, y = (`Number of animals euthanized at owner's request ` / `Number of animals euthanized`))) + 
+        geom_point(color = "#183054", alpha = .1) + 
+        stat_smooth(color = "#ffa781", alpha = .2, size = .7) +
+        labs(title = "Scatterplot of Animals Euthanized by \nOwner's Request Ratio Over Time", 
+            subtitle = "Notice how it has been increasing overall", 
+            x = "Time (Years)", 
+            y = "Animals Euthanized by Owner's Request Ratio \n(Animals euthanized by owner's request/total animals euthanized)") +
+        theme_new + 
+        theme(axis.title = element_text(size = 10, color = "grey40"))
+
+```
+
+
+Year and number of vouchers that were less than 3 
+```{r}
+## Transform.4
+#Use one for loop
+
+# Print out year and number of vouchers that were less than 3 
+for (i in seq_along(King_County_licenses_redeemed_COPY$`Number of Spays/Neuters`)) {
+  if (King_County_licenses_redeemed_COPY$`Number of Spays/Neuters`[[i]] < 3) {
+    print(paste0("In ", King_County_licenses_redeemed_COPY$Year[[i]], " we only ", King_County_licenses_redeemed_COPY$`Number of spay or neuter vouchers issued and redeemed`[[i]], " ", King_County_licenses_redeemed_COPY$`Number of Spays/Neuters`[[i]], " spay or neuter vouchers"))
+  }
+}
+
+```
+
+
+# Recommendations 
+
+Below are some recommendations for this nonprofit organization: 
+    
+  1. Follow up with individuals who are issued spay/neuter licenses to increase the number redeemed. 
+  2. Help protect against animals getting loose by adding fences to parks (possibly on 12th and 64th streets).  
+  3. Ensure pet owners are well educated regarding euthanization and other options.  
+
+
+
+
+# Limits and Conclusion 
+
+While I am confident in the findings based on this data from King County, there are some limitations as well as concerns that I have regarding the validity of my analysis.  For one, many people may not be aware of this service and their pet data is not included, thus we cannot make proper hypotheses regarding population as a whole, but rather just those who use this site. The word map analysis should also be considered cautiously as there may be more of a link between memos that's more difficult to connect with different wording.  In conclusion, most of the animals that are lost, found, or adoptable are not spayed/neutered yet spayed/neutered pets are the majority of licenses issued.  Thus, non-spayed/neutered animals might be more likely to be lost, found , or adoptable.  
+
+
+
+
+--End--
+
+How hard was this assignment? Was it: too hard, too easy, or just right? 
+
+ANSWER: Just Right
+
+Approximately how long did this assignment take you? 
+
+ANSWER: 20 hours
+
+
+

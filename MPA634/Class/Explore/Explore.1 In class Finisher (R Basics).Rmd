@@ -1,0 +1,164 @@
+---
+title: "Explore.1 In class finisher"
+author: "Laurel Galli-Graves"
+date: "1/08/2022"
+output:
+  html_document: default
+---
+# Update your name and the date at the top of this document.
+
+# Introduction to RStudio 
+Copy and paste the following code lines into the console one at a time. 
+
+random_number <- 3
+random_number + random_number 
+plot(1:5)
+
+Look at the four quadrants in RStudio. 
+
+Q: How do you change the size of the panes? 
+A: You can click and drag the panes to different sizes. 
+ 
+Q: What is the purpose of each pane? 
+A: 
+ - The top left pane is where we generally write code. We typically do this in an R Markdown file or script.  
+ - The bottom left pane is called the console. This is where code is executed. You can type code directly into here too, but once it is run it cannot be edited. 
+ - The top right pane holds the global environment. This is where we can see the objects and data sets that R is currently storing information on. We can also look at our history and import files from+this pane. 
+ - The bottom right pane is where we can see our files, see plots we have created, load and look at packages, and access help files. 
+
+
+# R Markdown vs. Script
+Copy and paste the code lines from above into the code chunk below and run them. 
+
+This is an R Markdown File (RMD or .rmd). Open a script (.r) and see the difference. 
+
+
+```{r}
+random_number <- 3
+random_number + random_number 
+plot(1:5)
+```
+
+Q: What are 3 differences between Markdown Files and scripts? 
+A: 
+
+1. R Markdown files have text outside of code chunks (generally) and script files need to have text always commented (#) out. 
+2. Script files output code results in the console, whereas markdown files output in the console and right below the code chunk. 
+3. R Markdown files are made to be knitted whereas script files are not. 
+4. (Bonus) Scripts do not have the header at the top (called a YAML), but Markdown files do. 
+
+# Objects, Vectors, and Lists 
+You can create both numerical objects and text objects. Create one of each below. 
+
+```{r}
+random_number <- 1234
+random_words <- "garlic salt"
+```
+
+Saved text is usually referred to as a "string" in R. Can you perform mathematical operations on strings? Try this in the console. 
+(No you cannot. You get an error.)
+
+Create two vectors, one numerical and one text. Print them out. 
+```{r}
+nums <- c(1:20)
+nums
+strings <- c("hi", "banana", "")
+strings
+```
+
+Create a blank vector
+```{r}
+blank <- c()
+```
+
+Create a vector and print it out at the same time. 
+```{r}
+(hi <- 3)
+```
+
+Print out the second value in your string vector.
+```{r}
+strings[2]
+```
+
+Combine two vectors together. 
+```{r}
+vec <- c(strings, random_words)
+```
+
+Make a list. 
+```{r}
+list1 <- list(1, "word", 2, 4, "happy")
+```
+
+Make a list within a list. Click on it in the global environment. 
+```{r}
+list2 <- list(list1, "thing 1", 1:2)
+```
+
+Access a value in the nested list with its index
+```{r}
+list2[1]
+list2[[1]][2]
+```
+
+Make a named list
+```{r}
+list3 <- list("num1" = 123, "num2" = 1, "num3" = 34)
+```
+
+Access part of a list by its name
+```{r}
+list3$num2
+```
+
+Q: What is the difference between a vector and a list? 
+A: 1) A vector only holds one data type whereas a list can hold multiple data types. 2) A vector can only be one dimensional but a list can be two dimensional. 
+
+# Datasets
+Mtcars is a dataset that is always loaded into R. Run the code below to see it. 
+```{r}
+mtcars
+```
+
+Q: What is the structure of a dataset? 
+A: It's a named list of vectors. 
+
+Print out the first column of the mtcar dataset by its index. 
+```{r}
+mtcars[1]
+```
+
+Print out the first column of the mtcars dataset by its name. 
+```{r}
+mtcars$mpg
+```
+
+Save the first value of that vector as an object
+```{r}
+my_fave_number <- mtcars$mpg[1]
+```
+
+Make a vector called "name" that stores the names of your family members. 
+```{r}
+name <- c("Rachel", "Ariel", "Hannah", "Laurel", "Lark", "Craig")
+```
+
+Make a vector called "age" that stores the ages of those family members in the same order. 
+```{r}
+age <- c(39, 36, 34, 27, 65, 64)
+```
+
+Make a dataset called "family" that stores these two columns. Print it out. 
+```{r}
+family <- data.frame(name, age)
+family
+```
+
+Find the mean of the ages of your family
+```{r}
+mean(family$age)
+```
+
+Knit this document and look at the output. 
+

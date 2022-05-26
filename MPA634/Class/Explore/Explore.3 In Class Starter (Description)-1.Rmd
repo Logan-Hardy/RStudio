@@ -1,0 +1,297 @@
+---
+title: "Explore.3 In Class Starter (Description)"
+author: "Laurel Galli-Graves"
+date: "11/8/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(message = FALSE, 
+                      warning = FALSE, 
+                      echo = TRUE)
+library(tidyverse)
+library(moments) 
+library(ggthemes)
+library(lubridate)
+```
+
+
+# Import Data and Fix Data Types 
+For this class we will be reusing the crash2019 dataset. Import it and run the following code to get all of the variables in the right format. (You may have to adjust to import this from the correct file location or do it manually.)
+```{r}
+crash_2019 <- read_csv("../Data/crash2019.csv") %>% mutate_if(is.character, as.factor)
+crash_2019$CRASH_ID <- as.character(crash_2019$CRASH_ID)
+crash_2019$ROUTE <- as.character(crash_2019$ROUTE)
+crash_2019$CRASH_SEVERITY_ID <- 
+  factor(crash_2019$CRASH_SEVERITY_ID, ordered = TRUE, 
+                                levels = c(1:5))
+```
+
+# Descriptive Stats 
+## Factor
+What counties are represented in the COUNTY_NAME column? Print out their names.
+```{r}
+sort(unique(crash_2019$COUNTY_NAME))
+
+#unique(crash_2019$COUNTY_NAME) %>% SORT()
+
+```
+
+Q: Are these categories clean? Are there any duplicates we may want to fix? 
+A: 
+
+We can also see how many unique values there are. 
+```{r}
+length(unique(crash_2019$COUNTY_NAME))
+```
+
+
+Now we want to actually know how many of each of those there are. 
+```{r}
+fct_count(crash_2019$COUNTY_NAME, sort = TRUE)
+```
+
+Q: What is the least common level? 
+A: DAGGETT
+
+How many rows have missing information? 
+```{r}
+sum(is.na(crash_2019$COUNTY_NAME))
+```
+
+## Numerical 
+There is more information we can get from numeric variables compared with categorical. We are already familiar with a lot of them from the summary function. Here are the main functions:
+
+ - mean()
+ - median()
+ - max()
+ - min()
+ - sd() (This is the standard deviation)
+ - quantile()
+ 
+Note: Mode is not included here. mode() is a function but it doesn't mean the most common value. Truthfully, there isn't a very clean function for mode, so we'll use a work around. 
+
+Try one of these on the crash dataset for the milepoint variable. 
+```{r}
+mean(crash_2019$MILEPOINT, na.rm=TRUE)
+median(crash_2019$MILEPOINT, na.rm=TRUE)
+sd(crash_2019$MILEPOINT, na.rm=TRUE)
+```
+
+You'll notice that it returns NA. That is because we have NAs in this column. To have R ignore the NAs include na.rm = TRUE as a parameter in the function. 
+
+```{r}
+quantile(crash_2019$MILEPOINT, na.rm=TRUE)
+```
+
+If you haven't already, try the quantile function 
+```{r}
+quantile(crash_2019$MILEPOINT, na.rm=TRUE)[2]
+quantile(crash_2019$MILEPOINT, na.rm=TRUE)["50%"]
+
+```
+
+This outputs a named vector. Use what we learned about vectors and lists to pull out just the first quartile (the one that says 25%).
+
+```{r}
+quantile(crash_2019$MILEPOINT, na.rm=TRUE)[1]
+quantile(crash_2019$MILEPOINT, na.rm=TRUE)["25%"]
+```
+
+There are also a couple of functions that don't come with the main base package of R. These are the kurtosis and skew functions. 
+
+(Skew is how symmetrical the distribution is, >0 is positive skew, <0 is negative skew)
+(Kurtosis is a measure of how flat or peaked the distribution is, >3 is leptokurtic or peaked, <3 is platykurtic or flatter)
+```{r}
+moments::skewness(crash_2019$MILEPOINT, na.rm = TRUE)
+moments::kurtosis(crash_2019$MILEPOINT, na.rm = TRUE)
+```
+
+Q: What does the kurtosis and skew of the data tell us? 
+A: 
+
+Let's make sure that is right by looking at a quick histogram. 
+```{r}
+hist(crash_2019$MILEPOINT)
+```
+
+## Logical
+All of the numeric descriptive functions work on logical variables (which is why we love them!) but not all of them are as useful. (We already know the min and the max, for instance.)
+
+The two most useful functions are mean() and sum(). Run both of these on the SINGLE_VEHICLE column. 
+```{r}
+mean(crash_2019$SINGLE_VEHICLE, na.rm = TRUE)
+sum(crash_2019$SINGLE_VEHICLE, na.rm = TRUE)
+```
+
+Q: What do these measures tell us? 
+A: 
+
+# Descriptive Statistics Table
+If we want to see a lot of descriptive information at once about our dataset, we can of course use one of our exploration functions (str(), summary()) but sometimes we want to see more information than is available in those functions. 
+
+In that case we can use this function to output some summary statistics about our dataset. Then try the same function out on the diamonds dataset. 
+```{r}
+descr_table <- function(df) {
+
+  df_num <- select_if(df, function(col) is.numeric(col) | is.logical(col)  | is.Date(col)) 
+  df_fac <- select(df, setdiff(colnames(df), colnames(df_num))) 
+  none <- rep("None", ncol(df_fac))
+  
+  matrix <- matrix(nrow = ncol(df), ncol=11, dimnames = list(c(names(df_num), names(df_fac)), c("Mean","Max","Min", "Std Dev", "Median", "Kurt", "Skew", "# Missing", "# Unique", "Class", "Mode")))
+  
+  matrix[,1] <- c(sapply(df_num, function(x) round(mean(x, na.rm = TRUE), 2)), none)
+  matrix[,2] <- c(sapply(df_num, function(x) max(x, na.rm = TRUE)), none)
+  matrix[,3] <- c(sapply(df_num, function(x) min(x, na.rm = TRUE)), none)
+  matrix[,4] <- c(sapply(df_num, function(x) round(sd(x, na.rm = TRUE), 2)), none)
+  matrix[,5] <- c(sapply(df_num, function(x) median(x, na.rm = TRUE)), none)
+  matrix[,6] <- c(sapply(df_num, function(x) round(moments::kurtosis(x, na.rm = TRUE), 2)), none)
+  matrix[,7] <- c(sapply(df_num, function(x) round(moments::skewness(x, na.rm = TRUE), 2)), none)
+  matrix[,8] <- sapply(cbind(df_num, df_fac), function(x) sum(is.na(x)))
+  matrix[,9] <- as.character(sapply(cbind(df_num, df_fac), function(x) length(unique(x))))
+  matrix[,10] <- as.character(sapply(cbind(df_num, df_fac), function(x) class(x)))
+  matrix[,11] <- sapply(cbind(df_num, df_fac), function(x) names(sort(table(x),decreasing=TRUE)[1]))
+  matrix <- as.data.frame(matrix)
+  return(matrix)
+}
+
+descr_table(crash_2019)
+```
+
+Q: How many rows are missing the latitude and longitude? 
+A: 15
+
+# Snippets
+That is a whole lot of code to be copying and pasting all the time. In situations like this, it's helpful to make a snippet. Make a snippet out of the descriptive statistics then try using your snippet to generate the code again and make a descriptive statistics table of the mtcars dataset. 
+```{r}
+try_me_now <- function(df) {
+
+  df_num <- select_if(df, function(col) is.numeric(col) | is.logical(col)  | is.Date(col)) 
+  df_fac <- select(df, setdiff(colnames(df), colnames(df_num))) 
+  none <- rep("None", ncol(df_fac))
+  
+  matrix <- matrix(nrow = ncol(df), ncol=11, dimnames = list(c(names(df_num), names(df_fac)), c("Mean","Max","Min", "Std Dev", "Median", "Kurt", "Skew", "# Missing", "# Unique", "Class", "Mode")))
+  
+  matrix[,1] <- c(sapply(df_num, function(x) round(mean(x, na.rm = TRUE), 2)), none)
+  matrix[,2] <- c(sapply(df_num, function(x) max(x, na.rm = TRUE)), none)
+  matrix[,3] <- c(sapply(df_num, function(x) min(x, na.rm = TRUE)), none)
+  matrix[,4] <- c(sapply(df_num, function(x) round(sd(x, na.rm = TRUE), 2)), none)
+  matrix[,5] <- c(sapply(df_num, function(x) median(x, na.rm = TRUE)), none)
+  matrix[,6] <- c(sapply(df_num, function(x) round(moments::kurtosis(x, na.rm = TRUE), 2)), none)
+  matrix[,7] <- c(sapply(df_num, function(x) round(moments::skewness(x, na.rm = TRUE), 2)), none)
+  matrix[,8] <- sapply(cbind(df_num, df_fac), function(x) sum(is.na(x)))
+  matrix[,9] <- as.character(sapply(cbind(df_num, df_fac), function(x) length(unique(x))))
+  matrix[,10] <- as.character(sapply(cbind(df_num, df_fac), function(x) class(x)))
+  matrix[,11] <- sapply(cbind(df_num, df_fac), function(x) names(sort(table(x),decreasing=TRUE)[1]))
+  matrix <- as.data.frame(matrix)
+  return(matrix)
+}
+```
+
+# Data Visualization 
+Open the visualization rmd. Copy and paste theme_new
+```{r}
+theme_new <-  theme_fivethirtyeight(base_size=12#,base_family="Open Sans"
+                                    ) %+replace% theme(panel.grid.major.y = element_line(colour = "grey80", size = 0.25),  panel.grid.major.x = element_blank(), panel.background = element_rect(fill = "white"), plot.background = element_rect(fill = "white"), legend.background = element_rect(fill = "white")) 
+```
+
+Now create a bar chart of the crash severity id variable. 
+```{r}
+crash_2019 %>% 
+        ggplot(aes(x = CRASH_SEVERITY_ID, fill = CRASH_SEVERITY_ID)) + 
+        geom_bar() +
+        labs(title = "Title", 
+            subtitle = "Subtitle") +
+        theme_new
+
+
+```
+
+Now create a histogram of the hour variable. You will need to adjust the binwidth
+```{r}
+crash_2019 %>% 
+        ggplot(aes(x = hour)) + geom_histogram(fill = "#afd7db", binwidth = 1) +
+        labs(title = "Title", 
+            subtitle = "Subtitle", 
+            y = "Count", 
+            x = "Variable") +
+        theme_new #+ theme(axis.title = element_text(size = 10, color = "grey40"))
+```
+
+# On your own 
+Import the fatal_police_shootings dataset that we used the last time. Explore the dataset in the ways we have learned. Run through the following tasks: 
+
+## Factor Functions
+For the armed column: 
+
+1. Print out all the categories in alphabetical order. 
+2. Print out how many levels there are. 
+3. Print out a table of all of the categories and their frequencies. 
+4. Print out the number of missing values in this column. 
+
+```{r}
+fatal_police_shootings <- read_csv("../Data/fatal_police_shootings.csv") %>% mutate_if(is.character, as.factor)
+
+
+```
+
+## Numeric Functions
+
+For the age variable:
+
+1. Find the median
+2. Find the minimum and maximum
+3. Find the kurtosis and skew
+4. Find the quantiles
+
+```{r}
+median(fatal_police_shootings$age, na.rm=TRUE)
+min(fatal_police_shootings$age, na.rm=TRUE)
+max(fatal_police_shootings$age, na.rm=TRUE)
+kurtosis(fatal_police_shootings$age, na.rm=TRUE)
+skewness(fatal_police_shootings$age, na.rm=TRUE)
+quantile(fatal_police_shootings$age, na.rm=TRUE)
+```
+
+## Logical Functions
+
+For the signs of mental illness column: 
+
+1. Print out the proportion of values that are true.
+2. Print out the number of values that are true. 
+
+```{r}
+mean(fatal_police_shootings$signs_of_mental_illness, na.rm=TRUE)
+sum(fatal_police_shootings$signs_of_mental_illness, na.rm=TRUE)
+
+```
+
+## Descriptive table
+Run the descriptive table function on the fatal police shooting dataset. 
+
+```{r}
+descr_table(fatal_police_shootings)
+```
+
+## Visualization 
+
+Make a histogram of the age variable 
+```{r}
+fatal_police_shootings %>% 
+        ggplot(aes(x = age)) + geom_histogram(fill = "#afd7db", binwidth = 1) +
+        labs(title = "Title", 
+            subtitle = "Subtitle", 
+            y = "Count", 
+            x = "Variable") +
+        theme_new #+ theme(axis.title = element_text(size = 10, color = "grey40"))
+```
+
+Make a bar chart of the race column
+```{r}
+fatal_police_shootings %>% 
+        ggplot(aes(x = race, fill = race)) + 
+        geom_bar() +
+        labs(title = "Title", 
+            subtitle = "Subtitle") +
+        theme_new
+```

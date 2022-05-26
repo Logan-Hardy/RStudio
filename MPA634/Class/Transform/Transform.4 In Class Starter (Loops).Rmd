@@ -1,0 +1,355 @@
+---
+title: "Transform.4 In Class Starter (Loops)"
+author: "Laurel Galli-Graves"
+date: "12/8/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+```
+
+# For Loops
+For loops are useful when you want to repeat the same task over multiple items in a vector or list. They are very common in pretty much every coding language, so it pays to understand how they work. 
+
+They have the following basic format: 
+
+for(i in vector) {
+  do a task with i
+}
+
+Note: "i" is often used in loops because it stands for "iteration" but you can put anything in that spot. It is just a placeholder. Whatever text you put there needs to be referenced later on in the loop. 
+```{r}
+# Here is a simple loop. What do you expect it will output? 
+for (value in 1:3){
+  print(value)
+}
+
+# How would you write that loop long hand? 
+
+
+# You can reference the value you are iterating on as many times as you like inside the loop. 
+for(cat in 1:3){
+  print(cat + cat)
+}
+
+# Loops are useful for text editing. Use the following vector to print out each animal name in the vector, then " are animals."
+animals <- c("Cats", "Dogs", "Walruses")
+
+for(i in animals){
+  print(paste0(i, " are animals."))
+}
+
+```
+
+## Changing values with seq_along
+So far we have just been printing values, but what if we want to actually change the values? This is where seq_along comes in handy.
+```{r}
+# Run the following code. What does seq_along do? 
+seq_along(animals)
+
+# This is useful because we can loop over a vector or list and use the index that is created with seq_along to access different values. Use seq_along to print out all the values of animals. Use animals[[i]] to access each value. 
+for (i in seq_along(animals)) {
+  print(animals[[i]])
+}
+
+# This is also useful because we can use i to track the number of loops we are on. Use the same function as above but this time print i before so we can track what loop we are on. 
+for (i in seq_along(animals)) {
+  print(i)
+  print(animals[[i]])
+  
+}
+
+# Now instead of printing out out values, let's actually overwrite them. Replace each animal name with the full string "animal_name are animals." Then print out animals. 
+for (i in seq_along(animals)) {
+  animals[[i]] <- paste0(animals[[i]], " are animals.")
+  print(animals[[i]])
+}
+
+
+# If you look up code online, you may see people using 1:length() instead of seq_along. This works almost the same way, but seq_along is better at handling errors. Can you see why? Run the following two loops to see the difference. 
+empty <- c()
+
+for(i in seq_along(empty)) {
+  print(i)
+  print(paste0(empty[[i]], " are animals."))
+}
+
+for(i in 1:length(empty)) {
+  print(i)
+  print(paste0(empty[[i]], " are animals."))
+}
+
+# You should always use seq_along() instead of 1:length()
+
+```
+
+## Nested for loops 
+So far we have been working just with vectors, which are just one dimensional. But what if we want to work with a data format that is not one dimensional, like a list of lists? How do you access all the values within it? 
+```{r}
+# Take a look at the nested list below. You may want to look at it in View to understand the structure.
+animal_list <- list(list(birds = c("Canaries", "Finches", "Robins")), 
+                    list(wildcats = c("Cougars", "Bobcats")), 
+                    list(fish = c("Trout", "Salmon", "Perch", "Cod")))
+
+# What happens if you use seq_along and print out animal_list[[i]] " are animals." like we've done before?
+for (i in seq_along(animal_list)) {
+  print(paste0(animal_list[[i]], " are animals."))
+}
+
+# To access each of these individually we need to make a nested list. 
+for (i in seq_along(animal_list)) {
+  for (j in seq_along(animal_list[[i]])) {
+      print(paste0(animal_list[[i]][[j]], " are animals."))
+  }
+}
+
+# This same principle works with a dataframe, since a dataframe is a list of vectors. df[[i]] Accesses columns, and df[[i]][[j]] accesses individual values within the dataframe. 
+for (i in seq_along(animal_list)) {
+  for (j in seq_along(animal_list[[i]])) {
+      print(paste0(animal_list[[i]][[j]], " are animals."))
+  }
+}
+
+# Print the mean of each column in mtcars in this format: "The mean of column 1 is: x"
+for (i in seq_along(mtcars)) {
+  print(paste0("The mean of column ", i, " is: ", mean(mtcars[[i]])))
+}
+
+# Make a copy of the mtcars dataset. Then round all the values in the mtcars dataset to zero decimal places in the mtcars copy. Check dataset afterward.
+mtcars1 <- mtcars
+
+for (i in seq_along(mtcars1)) {
+  for (j in seq_along(mtcars1)) {
+    mtcars1[[i]][[j]] <- trunc(round(mtcars[[i]][[j]], digits = 0))
+    
+  }
+}
+
+mtcars1
+```
+
+# If statements
+For loops are often used with if statements. That enables us to do a different function depending on some sort of condition. We have used conditional statements already in filtering statements and inequalities. Now we can apply them to loops. 
+```{r}
+# Let's recreate our original animal vector. Then loop through the values and check to see if they are cats. If so, print TRUE. 
+animals <- c("Cats", "Dogs", "Walruses")
+for (animal in animals) {
+  if (animal == "Cats") {
+    print(TRUE)
+  }
+}
+
+# What if we also want to see which animals are NOT cats? We will need an else statement. 
+animals <- c("Cats", "Dogs", "Walruses")
+for (animal in animals) {
+  if (animal == "Cats") {
+    print(TRUE)
+  }
+  else {
+    print(FALSE)
+  }
+}
+
+# Let's make it a little more complicated. If the value is Cats, we want it to read "These are Cats!". If the value is dogs, we want it to read "These are Dogs!", and if the value is neither, we want it to say "These are neither cats nor dogs!"
+
+
+# You can nest if statements as well, and add as many else ifs as you want in a row. 
+
+# Let's try the same function on another vector to make sure it works correctly. Run the animals2 vector through the same loop. 
+animals2 <- c("Kangaroo", "Moose", "Cats", "Cats", "Fish", "Dogs", "Lemurs")
+for (animal in animals2){
+  if (animal == "Cats"){
+    print("These are Cats!")
+  } else if (animal == "Dogs"){
+    print("These are Dogs!")
+  } else{
+    print("These are neither cats nor dogs!")
+  }
+}
+
+# Try a similar process for a numeric vector on your own. Run the vector below through a for loop which includes the following conditions. If the number is below 100, print that number times 10. If the number is between 100 and 200, simply print the number. If the number is greater than 200, print "This is a large number!"
+numbers <- c(15, 66, 2345, 2, 56, 119, 937, 1, 34, 3, 34)
+for (number in numbers) {
+  if (number < 100) {
+    print(number * 10) 
+  } else if (number < 200) {
+    print(number)
+  } else {
+    print("This is a large number!")
+  }
+}
+
+```
+
+If statements will run as long as the parenthesis evaluate to TRUE. This is good to know when dealing with values that are already logical. 
+```{r}
+# Run the following vector through a for loop. If the value is true, print "yes" if not print nothing. 
+logi <- c(TRUE, TRUE, FALSE, FALSE, FALSE)
+
+for (value in logi) {
+  if (value) {
+    print("Yes")
+  }
+}
+
+```
+
+A common application of this is to execute different code based on a logical vector in a dataframe. 
+
+## Breaks and Next
+Sometimes we may want to stop our loop partway through or ignore certain values in the loop. To stop our loop partway through, we can use "break" after a condition. To skip a value we can use "next" after a condition. 
+```{r}
+# Loop through the numbers 1 through 10. Print all of them until after 7, when you should break out of the loop. 
+for (value in 1:10) {
+  print(value) 
+  if (value == 7) {
+    break
+  }
+}
+
+# Now loop through the same numbers. Print all of them out except 7. 
+for (value in 1:10) {
+  if (value == 7) {
+    next
+  }
+  print(value) 
+}
+
+# If you have a break without a condition, your loop will simply run until it sees the break, then will stop. 
+for (i in 1:10){
+  print(i)
+  break
+}
+```
+
+Practical application: 
+We've been looping through small vectors, but sometimes the vectors you are working with could be thousands of values long! In these cases it is nice to put a break in your loop so you can check to make sure your loop is functioning right before you run it on the entire vector! 
+
+# While loops
+For loops are designed to loop through a list or vector and then stop. While loops in contrast don't have a natural stopping place. They will continue as long as their conditional statement is met. Let's look at an example. 
+```{r}
+i <- 0
+while(i <= 4) {
+  print(i)
+  i <- i + 1
+}
+
+# Write a while loop that will take our existing i (which now is 5) and square it until it is greater than 500. Have it print out the results. 
+
+
+```
+
+Caution! Since while loops don't have a natural stopping place, it's possible to make an infinite while loop with no end. If this happens you will need to manually stop the loop by pressing the stop button in the code chunk, hitting escape, or pressing the stop sign in the console. 
+
+# Useful stuff 
+Here's some other useful information about loops. 
+
+## What do loops output?
+Look at the code below. What is being created?
+```{r}
+for (i in 1:10){
+  print(i)
+}
+
+# How can we access that information? What is now stored in i?
+i
+
+# How could we store all of this output in a vector? Here is how I learned to do it. (Note: it's not a good way but this is quite common.)
+vector <- c()
+for (i in 1:10){
+  vector <- c(vector, i)
+}
+
+```
+
+## Loops are slow? 
+That last function seemed to go quickly, but appending a vector to itself is a very inefficient way to run a loop, since R has to recreate the object every time. Let's look at a better way. 
+```{r}
+# First make an empty vector of the correct length using the vector function
+
+
+```
+
+## Timing loops
+How do we know that was faster? Let's make our numbers larger and time each. 
+```{r}
+# Test one: appending a vector
+# start!
+ptm <- proc.time()
+
+vector <- c()
+for (i in 1:100000){
+  vector <- c(vector, i)
+}
+
+# stop!
+proc.time() - ptm
+
+
+
+# Test two: filling in an empty vector
+# start!
+ptm <- proc.time()
+
+vector1 <- vector(mode = "numeric", length = 100000)
+for (i in seq_along(1:100000)){
+  vector1[i] <- i
+}
+
+# stop!
+proc.time() - ptm
+```
+
+This difference is exponential, meaning for short vectors you may not see much difference, but the longer vectors are the more difference you will see.
+
+These principles can also be used when creating a dataset. If you are using a loop to create a dataset, first create the dataset with the right dimensions, then fill it in using your loop. 
+
+The other more intuitive thing that will speed up your code is to not use a loop when a function can handle an entire vector at once. 
+
+For example, don't compute 1 + 2 + 3 + 4 + 5 when you can use sum(1:5).
+
+## Ignoring errors with try()
+Errors are important and we need to pay attention to them. Oftentimes errors are the keys to us understanding what went wrong in our code. When a loop encounters an error, it will stop the loop and show the error. This is normally fine, but occasionally we know the loop will encounter an error, but we want it to keep going anyway. 
+
+```{r}
+# Using the things list, print each item in this list added to 1. 
+things <- list(1, 2, 3, 4, "tiger", 5, 6, 7)
+
+
+
+# Nesting this in a try function will keep the loop going. 
+
+
+# You can also silence the error but I recommend in general that you keep it. 
+
+```
+
+
+# Application 1 Applying different functions to cat and num columns
+```{r}
+for (col in colnames(mpg)){
+   if (class(mpg[[col]]) %in% c("numeric", "integer")){
+     print(paste0("Mean of ", col, ": ", mean(mpg[[col]])))
+   } else {
+     print(paste0("Number of levels in ", col, ": ", length(unique(mpg[[col]]))))
+   }
+}
+```
+
+
+# Application 2 Adding a random element 
+```{r}
+game_vec <- c("rock", "paper", "scissors")
+student1 <- sample(game_vec, 1)
+print(paste0("Student 1 is: ", student1))
+student2 <- sample(game_vec, 1)
+print(paste0("Student 2 is: ", student2))
+
+
+# Create a rock, paper, scissors game that prints out "Student 1 wins!", "Student 2 wins!", or "It's a tie!" depending the random selection generated above. 
+
+
+```
+

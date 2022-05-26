@@ -1,0 +1,198 @@
+---
+title: "Transform.2 In Class Finisher (Dplyr 2)"
+author: "Logan Hardy"
+date: "01/20/2022"
+output: html_document
+---
+
+# Set up
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+```
+
+Import the refugee2011_15 dataset
+
+```{r}
+refugees2011_15 <- read_csv("~/Desktop/R Working Directory/Datasets for playing/Nonprofit data/refugees2011-15.csv") %>% mutate_if(is.character, as.factor)
+```
+
+# Arrange
+
+The arrange function is the primary way we sort our dataset. We can arrange alphabetically or numerically. We can also sort by multiple variables at the same time and by descending order.
+
+Q: How is the data currently sorted? 
+A: Alphabetically by year and country of asylum name.
+
+```{r}
+# Sort the data by Country of origin name in alphabetical order
+refugees2011_15 %>% arrange(Origin)
+
+# Sort the data by Country of origin in reverse alphabetical order
+refugees2011_15 %>% arrange(desc(Origin))
+
+# Sort the data by the Total population in ascending order. 
+refugees2011_15 %>% arrange(TotalPop)
+
+# Sort the data by refugees in descending order.
+refugees2011_15 %>% arrange(desc(Refugees))
+
+# Sort the data by Country of Origin, then by descending asylyum seekers. 
+refugees2011_15 %>% arrange(Origin, desc(Refugees))
+```
+
+Q: In the following code, which sorting order takes precedence? refugees2011_15 %>% arrange(Country, desc(Origin), Year) 
+A: Country
+
+Q: In the same code above, How is a tie of country and origin settled? (Aka what happens if more than one row has the same Country and Origin?) 
+A: The one with the lower year will go first.
+
+## Using arrange and head together
+
+Arrange and head are commonly used together because sometimes we just want to see certain information.
+
+```{r}
+# Grab only the 10 rows with the highest refugee count
+refugees2011_15 %>% arrange(desc(Refugees)) %>% head(n = 10)
+```
+
+Q: Filtering also enables us to grab a certain number of rows, just like head() and arrange() do together. What is the difference between using these two approaches? 
+A: Filtering always requires a conditional operation and then will return all the rows that meet that condition. We cannot decide how many rows we return, whereas using arrange() and head() returns rows that may or may not have a condition but we can decide how many we want.
+
+```{r}
+# Use fiter to return the same subset as the code above (It doesn't need to be ordered the same.)
+refugees2011_15 %>% filter(Refugees >= 951142)
+```
+
+# Summarize
+
+Summarize is used to collapse numeric columns into some sort of summary statistic. That means it always works in conjunction with some sort of mathematical function, like mean(), median(), sum(), etc. It will only return the columns it directly pertains to.
+
+```{r}
+# Find the sum of the entire Asylum column. 
+refugees2011_15 %>% summarize(sum(AsylumSeekers, na.rm = TRUE))
+```
+
+Q: How does summarize default to naming the column it creates? 
+A: It names it after the function used to create it.
+
+This autocreated name is kind of ugly. We will always want to rename it.
+
+```{r}
+# Repeat the same code above but this time name it total_asy
+refugees2011_15 %>% summarize(total_asy = sum(AsylumSeekers, na.rm = TRUE))
+```
+
+# Group_by
+
+Summarizing is useful to a point, but more often than wanting to know the summary statistic of an entire column (which we could do just as easily by using the sum function by itself), we will want to know a summary statistic for each category in a categorical variable.
+
+If we group our dataset by a categorical variable first, then use the summarize function, it will return one row for every category with the summary statistic.
+
+```{r}
+#Find the mean number of refugees coming from every origin country. Remember to rename the new column.
+refugees2011_15 %>% 
+  group_by(Origin) %>% 
+  summarize(mean_refugee = mean(Refugees, na.rm = TRUE))
+```
+
+Q: What happens if you do group_by() without a summarize function? 
+A: It creates groups in the background but you will not be able to see anything different.
+
+Q: What happens if you try to summarize a category that doesn't have any data in it? 
+A: It will return NaN
+
+Just like the arrange() function, you can layer groupings to group by more than one categorical variable at once. You can also summarize more than one numeric variable at once. 
+
+```{r}
+# Find the maximum refugee count for every origin and asylum combination.
+refugees2011_15 %>% 
+  group_by(Origin, Country) %>% 
+  summarize(max_refugee = max(Refugees, na.rm = TRUE))
+
+# Use that same code, but this time include a column for the maximum asylum seeker count. 
+refugees2011_15 %>% 
+  group_by(Origin, Country) %>% 
+  summarize(max_refugee = max(Refugees, na.rm = TRUE), 
+            max_asylum = max(AsylumSeekers, na.rm = TRUE))
+```
+
+Q: Does it make sense to use group_by() and summarize() separately? 
+A: We will pretty much never use group_by() and summarize() separately. Summarize is pretty useless by itself because it just returns one number, and group_by() doesn't output anything different without a summarize function. For this reason we say that they are "married."
+
+Q: Does the group_by() come before or after the summarize? 
+A: Group_by() will *always* come first because R needs to know what category we are grouping by before it summarizes. 
+
+## Counting groups
+We said that when we use group_by and summarize together we are finding a statistic about a numeric variable based on a categorical variable. There is one major exception to this rule. Sometimes we just want to know how many rows are in each category. In this case we don't need to involve any numeric variable. 
+
+```{r}
+# Does each year have the same number of data points? 
+refugees2011_15 %>% 
+  group_by(Year) %>% 
+  summarize(count = n())
+```
+
+Q: We said we group_by categorical variables. But isn't year a numerical column? 
+A: That is a little more complicated of a question that it sounds. Year can be treated as either a categorical variable (which emphasizes the individual effect each year will have on some other variable) or a numerical variable (which emphasizes the change over time.) In this case we can group_by() year because there are so few represented numbers, but we rarely group by a numeric variable because it treats every single number as its own group which gets out of hand. 
+
+```{r}
+# Which Origin and Country combination have the highest number of rows?  
+refugees2011_15 %>% 
+  group_by(Origin, Country) %>% 
+  summarise(count = n()) %>% 
+  arrange(desc(count))
+```
+
+## A quirk of group_by
+What happens when you group by a variable but then want to select other variables? 
+```{r}
+# group the data by the year variable then select only the origin and country columns. 
+refugees2011_15 %>% group_by(Year) %>% select(Origin, Country)
+```
+
+Solving this problem: the ungroup() function 
+```{r}
+refugees2011_15 %>% group_by(Year) %>% ungroup() %>% select(Origin, Country)
+```
+
+# Putting it all together 
+```{r}
+# I want to know which 5 countries have been sought asylum from the US between 2011-2015
+refugees2011_15 %>% 
+  filter(Country == "UnitedStates") %>% 
+  group_by(Origin) %>% 
+  summarize(total_asy = sum(AsylumSeekers, na.rm = TRUE)) %>% 
+  arrange(desc(total_asy)) %>% 
+  head(n = 5)
+
+# Make a new column that subtracts asylum seekers from refugees. Total this number for every year. Make a new column that says "in 2011, there were x more refugees than asylum seekers." Call this column output. Select only this column as the eventual output. 
+refugees2011_15 %>% 
+  mutate(ref_minus_asy = Refugees - AsylumSeekers) %>% 
+  group_by(Year) %>% 
+  summarize(ref_minus_asy = sum(ref_minus_asy, na.rm = TRUE)) %>% 
+  mutate(output = paste0("In ", Year, ", there were ", ref_minus_asy, " more refugees than asylum seekers.")) %>% 
+  select(output)
+
+# Count the number of asylum countries with more than 100,000 collective refugees in 2013 and 2015
+refugees2011_15 %>% 
+  group_by(Year, Country) %>% 
+  summarize(sum_refugee = sum(Refugees, na.rm = TRUE)) %>% 
+  filter(Year %in% c(2013, 2015), 
+         sum_refugee > 100000) %>% 
+  summarize(count = n())
+
+# Find the standard deviation of refugees and asylum seekers that come from each country between 2011-2015. (I want to see a separate column for refugees and asylum seekers) Remove all missing data. Return all rows with a standard deviation of each measure above or equal to 1000. Sort your results first by the standard deviation of refugees in descending order, then the standard deviation of asylum seekers in descending order. Only include the top 5 results. 
+refugees2011_15 %>% 
+  group_by(Origin) %>% 
+  summarize(sd_refugee = sd(Refugees, na.rm = TRUE), 
+            sd_asy = sd(AsylumSeekers, na.rm = TRUE)) %>% 
+  na.omit() %>% 
+  filter(sd_refugee >= 1000 & sd_asy >=1000) %>% 
+  arrange(desc(sd_refugee), desc(sd_asy)) %>% 
+  head(n = 5)
+```
+
+
+

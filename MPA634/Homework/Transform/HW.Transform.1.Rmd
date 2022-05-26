@@ -1,0 +1,144 @@
+---
+title: "HW.Transform.1"
+author: "Logan Hardy"
+date: "01/19/2022"
+output: html_document
+---
+
+30 points (25 for this assignment, 5 for being on time)
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE)
+library(tidyverse)
+```
+
+# Step 1: Inequalities (5 points)
+```{r}
+num1 <- 150
+num2 <- 50
+num3 <- 100
+num4 <- "150"
+
+# Write an inequality to see if num1 or num2 are greater than num3
+num1 | num2 > num3
+
+# Write an inequality to see if both num1 and num2 are greater than num3
+num1 & num2 > num3
+
+# Write an inequality to check if num2 is both less than or equal to num1 and greater than or equal to num3
+(num2 <= num1) & (num2 >= num3)
+
+# Write an inequality to check if num2 + num3 is NOT equal to num1
+num2 + num3 != num1
+
+# Write an inequality to see if num1 and num4 are equal
+num1 == num4
+
+```
+
+# Step 2: Mathematical Operations (2 points)
+```{r}
+# Multiply num1 and num2 and divide that result by num3. Just return the remainder.
+(num1 * num2) %/% num3
+
+
+```
+
+Q: In your console, try using num4 in a mathematical operation. Does this work? Why or why not? 
+A: No, this does not work because it is a string.  Error in num4 + 20 : non-numeric argument to binary operator
+
+# Step 3: (4 points)
+```{r}
+vec1 <- c(1:4)
+vec2 <- c(45, 15, 2, 11)
+vec3 <- c(64, 2, 199, 358, 34, 7)
+
+# Divide vec2 by vec1 and get the answer in an integer. 
+as.integer(vec2 / vec1)
+
+# Write an inequality to see if vec2 is greater than or equal to vec1 ans save the results as vec4.
+vec4 <- vec2 >= vec1
+
+#vec3 / vec2
+
+```
+
+
+Q: What would happen if you divided vec3 by vec2? 
+A: It would work by repeating through the list but give a warning because of the different list lengths. Warning in vec3/vec2 : longer object length is not a multiple of shorter object length
+
+Q: Try a mathematical operation with vec4 in the console. What happens? 
+A: Mathematical operation works with vec4 because logic variables are treated as 1's and 0's.  So if you have vec4 + 10 the result would be: 11 11 10 11.  
+
+# Step 4: Import Data (2 points)
+```{r}
+# Import the hazmat77_14 dataset with readr. 
+hazmat77_14 <- read_csv("../Data/hazmat77_14.csv")
+
+```
+
+I recommend you run some exploration functions quickly in the console to get to know this data. 
+
+Q: If you wanted to quickly see the mean, median, and quartiles of all of the numeric variables in this dataset, which exploration function would you use? 
+A: summary(); for example: summary(hazmat77_14)
+
+# Step 5: Filter, Select, Mutate, etc. (12 points)
+
+Follow these instructions carefully, step by step. (I suggest you try to do these one at a time so you can catch errors as you write them.)
+
+Create a subset of the hazmat77_14 dataset by using the following steps in order: 
+
+1. Filter for the following specifications: 
+    a) the date is after the 1st of January, 2000 
+    b) the only report submission source is web and 
+    c) the origin state is Utah
+2. Select the date column, and all columns that are numeric.
+3. Create a new column called Total.Fatalities.Injuries that is Total.Hazmat.Fatalities, Total.Hazmat.Hosp.Injuries, and Total.Hazmat.NonHosp.Injuries added together. 
+4. Filter this new dataset so that the new column you created is greater than 0. 
+
+```{r}
+hazmat77_14 %>% filter(Date.of.Incident > "2000-01-01", 
+                       Report.Submission.Source == "Web",
+                       Origin.State == "UTAH") %>% select(Date.of.Incident, is.numeric) %>% mutate(Total.Fatalities.Injuries = Total.Hazmat.Fatalities + Total.Hazmat.Hosp.Injuries + Total.Hazmat.NonHosp.Injuries) %>% filter(Total.Fatalities.Injuries > 0)
+```
+
+Q: What is the date of the incident with 11 total injuries or fatalities? 
+A: 2005-08-10	
+
+Q: How many rows are remaining?
+A: 4
+
+Create another subset of the hazmat77_14 dataset by using the following steps in order: 
+
+1. Only include rows where: 
+    a) The incident happened in the cities of Ogden, West Valley, or Vernal
+    b) The hazardous class was the flammable, combustible liquid category
+    c) The damages amount was greater than 0 and less than 1000
+2. Create a new column called Damages that would say for the second row: "The flammable - combustiable liquid that came from Utah to Vernal on 2002-10-16 via highway cost a total of $75."
+*Note*: you can ignore capitals if you want, but brownie points if you can make the sentence read exactly as above. 
+3. Remove all rows with NAs
+4. Select just the columns you needed to create the new column and the new column itself. 
+5. Limit the results to ten rows with head()
+
+
+```{r}
+hazmat77_14 %>% filter(Incident.City %in% c("OGDEN", "WEST VALLEY", "VERNAL"), 
+                       Hazardous.Class == "FLAMMABLE - COMBUSTIBLE LIQUID", 
+                       Total.Amount.of.Damages > 0 & Total.Amount.of.Damages < 1000) %>% 
+  mutate(Damages = paste0("The ", str_to_lower(Hazardous.Class), " that came from ", str_to_sentence(Origin.State), " to ", str_to_title(Incident.City), " on ", Date.of.Incident, " via ", Mode.of.Transportation, " cost a total of $", Total.Amount.of.Damages, ".")) %>% 
+  drop_na() %>% 
+  select(Origin.State, Incident.City, Date.of.Incident, Mode.of.Transportation, Hazardous.Class, Total.Amount.of.Damages, Damages) %>% head(10)
+```             
+
+Q: How many of these remaining observations came from California? 
+A: 3
+
+# Optional feedback: 
+
+How hard was this assignment? Was it: too hard, too easy, or just right? 
+
+ANSWER: Just Right
+
+Approximately how long did this assignment take you? 
+
+ANSWER: 2.5 hours

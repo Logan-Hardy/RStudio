@@ -1,0 +1,381 @@
+---
+title: "Report 2"
+author: "Logan Hardy"
+date: "04/06/2022"
+output: html_document
+---
+Import libraries 
+
+```{r setup}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(fastDummies)
+library(dplyr)
+library(ggthemes)
+library(tidytext)
+library(textdata)
+library(sentimentr)
+library(textfeatures)
+library(wordcloud2)
+library(caret)
+library(VIM)
+
+```
+
+Import dataset 
+
+
+```{r cars}
+# Import dataset and mutate text to lower case and cyberbullying as factor 
+cyberbullying_tweets <- read_csv("../Data/cyberbullying_tweets.csv")
+cyberbullying_tweets <- cyberbullying_tweets %>% mutate(tweet_text = str_to_lower(tweet_text), cyberbullying_type = as.factor(cyberbullying_type))
+```
+
+# Strategy 
+My strategy is to create as many variables/features as possible and then get rid of the unimportant ones.  I begin by getting several types of sentiments.  Then I created about dozen logical features indicating if key words were contained.  I also added additional text features like number of 1st, 2nd, and 3rd person words.  I used several models to see which would be the most accurate and the quickest: lda, bayesglm, rpart1SE, gaussprLinear, glmStepAIC, null, qda, and Linda.  Null was the worst one and resulted in an accuracy of 0.31.  the lda was the most accurate and surprisingly the quickest.  Thus I went with lda and received a train accuracy of 0.72 and a test accuracy of 0.73. 
+I cleaned up the data and divided it into as many features as possible and ended up with 69 total columns.  After eliminating unnecessary columns that were empty, too high linear combos, near zero, and highly correlated, the end dataset only had 36 columns.  
+
+```{r}
+#create unique id column 
+cyberbullying_tweets_sent <- cyberbullying_tweets %>% mutate(id = row_number())
+
+# Make a copy of the copied dataset that has 1) a unique identifier and 2) the text column.
+sentiment_tweets <- cyberbullying_tweets_sent %>% dplyr::select(id, tweet_text) %>% 
+                unnest_tokens(word, tweet_text) 
+
+# custom stop words 
+custom_stop <- c("get", "can", "know", "http://", "https://", "said", "called", "got", "go", "middle", "much") 
+
+# get rid of stop words
+sentiment_tweets <- sentiment_tweets %>% 
+                anti_join(get_stopwords()) %>% 
+                filter(!word %in% custom_stop)
+
+# Merge the emotion dictionary with our sentiment dataset. 
+sentiment_tweets <- sentiment_tweets %>% 
+  full_join(get_sentiments("nrc")) %>% 
+  group_by(id, sentiment) %>% 
+  summarize(count = n()) %>% 
+  na.omit() %>% 
+  pivot_wider(names_from = sentiment, values_from = count) %>% 
+  mutate(across(everything(), ~replace_na(.x, 0))) %>% 
+  ungroup() %>% 
+  full_join(sentiment_tweets)
+
+# weighted positivity
+sentiment_tweets <- 
+sentiment_tweets %>% 
+  full_join(get_sentiments("afinn")) %>% 
+  group_by(id) %>% 
+  mutate(across(value, ~replace_na(.x, 0))) %>%
+  summarize(positivity_weights = mean(value)) %>% 
+  ungroup() %>% 
+  full_join(sentiment_tweets)
+
+#Merge in the positive negative dictionary.
+sentiment_tweets <- 
+sentiment_tweets %>% 
+  full_join(get_sentiments("bing")) %>% 
+  group_by(id, sentiment) %>% 
+  summarize(count = n()) %>% 
+  na.omit() %>% 
+  pivot_wider(names_from = sentiment, values_from = count) %>% 
+  mutate(across(c(positive, negative), ~replace_na(.x, 0)), 
+         positivity_binary = (positive - negative)/sum(positive, negative, na.rm = TRUE)) %>% 
+  ungroup() %>% 
+  dplyr::select(-positive, -negative) %>% 
+  full_join(sentiment_tweets)
+
+#Remove words and duplicate rows. Rejoin to the copied dataset. 
+cyberbullying_tweets_cp <- 
+  sentiment_tweets %>% dplyr::select(-word) %>% 
+    distinct() %>% # Removes all duplicate rows
+    full_join(cyberbullying_tweets_sent, by = c("id")) 
+
+```
+
+Get Top Words 
+Function to get the top words in a cyberbullying type 
+
+```{r}
+get_top_words <- function(df, type) {
+  
+  sentiment_tweets <- df %>% filter(cyberbullying_type==type) %>% dplyr::select(id, tweet_text) %>% 
+                  unnest_tokens(word, tweet_text) 
+  
+  custom_stop <- c("get", "can", "know", "http", "https", "said", "called", "got", "go", "middle", "://", "much") # You can add any other words to this list to remove them.
+  
+  sentiment_tweets <- sentiment_tweets %>% 
+                  anti_join(get_stopwords()) %>% 
+                  filter(!word %in% custom_stop)
+  
+  # get word count and arrange by descending count 
+  df2 <- sentiment_tweets %>% select(word) %>% group_by(word) %>% summarize(count=n()) %>% select(word, count) %>% arrange(desc(count))
+  return(df2)
+}
+```
+
+Create vectors  
+create vectors of all the cyberbullying types and the top 20 most used words for each 
+This was used to find key words for each category and help determine words I should look for in the tweet text 
+
+```{r}
+# Create dataframe of all the cyberbullying types and the top 20 most used words for each 
+df_r <- get_top_words(cyberbullying_tweets_cp, "age") %>% 
+        head(20) %>% mutate(age = word) %>% select(-word)
+df_r <- get_top_words(cyberbullying_tweets_cp, "ethnicity") %>% 
+        head(20) %>% mutate(ethnicity = word) %>% select(-word) %>% cbind(df_r)
+df_r <- get_top_words(cyberbullying_tweets_cp, "gender") %>% 
+        head(20) %>% mutate(gender = word) %>% select(-word) %>% cbind(df_r)
+df_r <- get_top_words(cyberbullying_tweets_cp, "not_cyberbullying") %>% 
+        head(20) %>% mutate(not_cyberbullying = word) %>% select(-word) %>% cbind(df_r)
+df_r <- get_top_words(cyberbullying_tweets_cp, "other_cyberbullying") %>% 
+        head(20) %>% mutate(other_cyberbullying = word) %>% select(-word) %>% cbind(df_r)
+df_r <- get_top_words(cyberbullying_tweets_cp, "religion") %>% 
+        mutate(religion = word) %>% select(-word) %>% head(20) %>% cbind(df_r)
+
+
+df_r
+
+```
+
+
+Add more columns
+Add more columns: contains key word categories, tweet length, and word types 
+
+```{r add_columns}
+# Search for bully, school, name calling and other key word categories
+cyberbullying_tweets_cp <- 
+  cyberbullying_tweets_cp %>% 
+  mutate(contains_bully = ifelse(str_detect(tweet_text, "bully") | 
+                        str_detect(tweet_text, "bullies") | 
+                        str_detect(tweet_text, "bullied"), TRUE, FALSE), 
+         contains_god = ifelse(str_detect(tweet_text, "god") | 
+                        str_detect(tweet_text, "allah") | 
+                        str_detect(tweet_text, "jesus") | 
+                        str_detect(tweet_text, "christ"), TRUE, FALSE), 
+         contains_religion = ifelse(str_detect(tweet_text, "christian") | 
+                        str_detect(tweet_text, "islam") | 
+                        str_detect(tweet_text, "jew") | 
+                        str_detect(tweet_text, "bible") | 
+                        str_detect(tweet_text, "quran") | 
+                        str_detect(tweet_text, "atheist") | 
+                        str_detect(tweet_text, "atheism") | 
+                        str_detect(tweet_text, "jihad") | 
+                        str_detect(tweet_text, "terrorism") | 
+                        str_detect(tweet_text, "country")| 
+                        str_detect(tweet_text, "muslim"), TRUE, FALSE),
+         contains_school = ifelse(str_detect(tweet_text, "school"), TRUE, FALSE), 
+         contains_time = ifelse(str_detect(tweet_text, "time"), TRUE, FALSE), 
+         contains_believe = ifelse(str_detect(tweet_text, "believe"), TRUE, FALSE),
+         contains_non_cb = ifelse(str_detect(tweet_text, "andre") | 
+                        str_detect(tweet_text, "love") | 
+                        str_detect(tweet_text, " de ") | 
+                        str_detect(tweet_text, "good"), TRUE, FALSE),
+         contains_other = ifelse(str_detect(tweet_text, "feminazi") | 
+                        str_detect(tweet_text, "gamergate") | 
+                        str_detect(tweet_text, "free") | 
+                        str_detect(tweet_text, "warcraft") | 
+                        str_detect(tweet_text, "ð") | 
+                        str_detect(tweet_text, "hate"), TRUE, FALSE),
+         contains_joke = ifelse(str_detect(tweet_text, "joke"), TRUE, FALSE), 
+         contains_rape = ifelse(str_detect(tweet_text, "rape") | 
+                        str_detect(tweet_text, "abuse") | 
+                        str_detect(tweet_text, "molest"), TRUE, FALSE),
+         contains_ageism = ifelse(str_detect(tweet_text, "old") | 
+                        str_detect(tweet_text, "young") | 
+                        str_detect(tweet_text, "ancient") | 
+                        str_detect(tweet_text, "high") | 
+                        str_detect(tweet_text, "elder") | 
+                        str_detect(tweet_text, "kids") | 
+                        str_detect(tweet_text, "friends") | 
+                        str_detect(tweet_text, "age"), TRUE, FALSE),
+         contains_name_calling = ifelse(str_detect(tweet_text, "idiot") | 
+                        str_detect(tweet_text, "gay") | 
+                        str_detect(tweet_text, "trans") | 
+                        str_detect(tweet_text, "dumb") | 
+                        str_detect(tweet_text, "homo"), TRUE, FALSE), 
+         contains_gender = ifelse(str_detect(tweet_text, "woman") | 
+                        str_detect(tweet_text, "sex") | 
+                        str_detect(tweet_text, "man") | 
+                        str_detect(tweet_text, "female") | 
+                        str_detect(tweet_text, "male") | 
+                        str_detect(tweet_text, "girl") | 
+                        str_detect(tweet_text, "boy") | 
+                        str_detect(tweet_text, "gender") | 
+                        str_detect(tweet_text, "trans") | 
+                        str_detect(tweet_text, "feminist"), TRUE, FALSE),
+         contains_race = ifelse(str_detect(tweet_text, "white") | 
+                        str_detect(tweet_text, "race") | 
+                        str_detect(tweet_text, "black") | 
+                        str_detect(tweet_text, "american") | 
+                        str_detect(tweet_text, "mexican") | 
+                        str_detect(tweet_text, "hispanic") | 
+                        str_detect(tweet_text, "caucasian") | 
+                        str_detect(tweet_text, "africa") | 
+                        str_detect(tweet_text, "indian"), TRUE, FALSE),
+         contains_racist = ifelse(str_detect(tweet_text, "racist") | 
+                        str_detect(tweet_text, "racism") | 
+                        str_detect(tweet_text, "nigger") | 
+                        str_detect(tweet_text, "nigga") |  
+                        str_detect(tweet_text, "negro") | 
+                        str_detect(tweet_text, "tayyoung_") |
+                        str_detect(tweet_text, "ethnicity"), TRUE, FALSE),
+         contains_president = ifelse(str_detect(tweet_text, "trump") | 
+                        str_detect(tweet_text, "obama") | 
+                        str_detect(tweet_text, "biden"), TRUE, FALSE),
+         # CAUTION! bad words, do not read!!
+          contains_explicit = ifelse(str_detect(tweet_text, "ass") | str_detect(tweet_text, "bitch") | str_detect(tweet_text, "cunt") | str_detect(tweet_text, "slut") | str_detect(tweet_text, "fuck") | str_detect(tweet_text, "damn") | str_detect(tweet_text, "shit"), TRUE, FALSE))
+
+
+# Eliminate punctuation, digits, and line breaks
+cyberbullying_tweets_cp <- 
+  cyberbullying_tweets_cp %>% 
+    mutate(tweet_text = str_replace_all(tweet_text, c("(?<=^|\\s)#\\S+" = "", 
+                                          "(?<=^|\\s)@\\S+" = "",
+                                          " http.*" = "", 
+                                          "[\r\n]" = "", 
+                                          "[:punct:]" = "",
+                                          "[[:digit:]]+" = "")))
+
+# Make a new column that is a count of all the characters in the text column.
+cyberbullying_tweets_cp <- 
+  cyberbullying_tweets_cp %>% mutate(nchar_tweet = nchar(tweet_text))
+
+# Add more sentiment scores, and some word types like 1st and 3rd person 
+cyberbullying <- textfeatures(cyberbullying_tweets_cp$tweet_text, word_dims=FALSE) %>% cbind(cyberbullying_tweets_cp)
+
+```
+
+Count number of TRUES in newly created variables 
+This part is not really important, but I found it insightful as I was choosing how to split these up and see how informative they would be with their cyberbullying type 
+
+```{r}
+sum(cyberbullying$contains_bully, na.rm = TRUE)
+sum(cyberbullying$contains_god, na.rm = TRUE)
+sum(cyberbullying$contains_school, na.rm = TRUE)
+sum(cyberbullying$contains_name_calling, na.rm = TRUE)
+
+sum(cyberbullying$contains_rape, na.rm = TRUE)
+sum(cyberbullying$contains_gender, na.rm = TRUE)
+sum(cyberbullying$contains_race, na.rm = TRUE)
+sum(cyberbullying$contains_religion, na.rm = TRUE)
+sum(cyberbullying$contains_joke, na.rm = TRUE)
+sum(cyberbullying$contains_racist, na.rm = TRUE) 
+sum(cyberbullying$contains_other, na.rm = TRUE) 
+sum(cyberbullying$contains_non_cb, na.rm = TRUE) 
+
+sum(cyberbullying$contains_president, na.rm = TRUE) 
+sum(cyberbullying$contains_time, na.rm = TRUE) 
+
+sum(cyberbullying$contains_explicit, na.rm = TRUE) 
+```
+# Results 
+Null was the worst one and resulted in an accuracy of 0.31.  the lda was the most accurate and surprisingly the quickest.  Thus I went with lda and received a train accuracy of 0.72 and a test accuracy of 0.73. Some of the parameters that helped achieve this high accuracy score was the seed of 12345, 90% of the data in the train dataset, and 0.78 for the correlation cutoff. 
+I have also included a parallel coordinate plot showing just 10 of the columns.  I found that this was informative because for these specific columns, not_cyberbullying and other_cyberbully had a lot of overlap, which is probably why my model had a hard time distinguishing between the two. 
+
+```{r}
+# Split data
+# Test and train data 
+
+#import functions
+source("preprocessing_functions.R")
+
+# set seed and split data 
+set.seed(12345)
+cyberbullying_numeric <- cyberbullying %>% dplyr::select(-tweet_text, -id) %>% mutate_if(is.logical, as.numeric)
+
+
+sample <- trainIndex <- createDataPartition(cyberbullying_numeric$cyberbullying_type, p = 0.90, 
+                                  list = FALSE, 
+                                  times = 1)
+train <- cyberbullying_numeric[sample,]
+test <- cyberbullying_numeric[-sample,]
+
+```
+
+
+Clean data columns 
+Get rid of extra columns and impute NAs
+
+```{r}
+# eliminate columns that have too much empty, near zero, linear combos, or are too coorelated
+# replace NAs with medians 
+train_processed <- train %>% dplyr::select(-cyberbullying_type) %>%
+  remove_empty(cutoff = 0.40) %>% 
+  impute(method = "median") %>% 
+  remove_near_zero(print_results = TRUE) %>% 
+  remove_linear_combos(print_results = TRUE) %>% 
+  remove_correlated(cutoff = 0.78, print_results = TRUE) %>% 
+  replace_label(train, cyberbullying_type) 
+
+test_processed <- test %>% dplyr::select(-cyberbullying_type) %>%
+  remove_empty(cutoff = 0.40) %>% 
+  impute(method = "median") %>% 
+  remove_near_zero(print_results = TRUE) %>% 
+  replace_label(test, cyberbullying_type) %>% 
+  dplyr::select(colnames(train_processed))
+
+```
+
+Predict Cyber bullying type 
+
+```{r}
+# Linear Discriminant Analysis 
+model_lda <- classification_train(train_processed, "cyberbullying_type", method = "lda")
+
+# Accuracy of lda model
+predicted <- predict(model_lda, test_processed)
+print(paste0("Accuracy: ", round(confusionMatrix(test_processed$cyberbullying_type, predicted)[["overall"]][["Accuracy"]], 2)))
+
+```
+
+Create confusion matrix 
+Here I created a confusion matrix to see how accurate my model was predicting cyberbullying types.  not_cyberbullying and other_cyberbullying are the least accurate while ethnicity and religion are the most accurate. 
+
+```{r}
+# Create confusion matrix of the test data
+library(cvms)
+confusionMatrix(test_processed$cyberbullying_type, predicted)
+```
+
+
+```{r}
+# save model for fun 
+saveRDS(model_lda, "model.rds")
+
+train_processed %>% 
+    GGally::ggparcoord(
+      columns = c(25:35), 
+      groupColumn = 1, 
+      showPoints = TRUE, 
+      title = "Title",
+      alphaLines = 0.05
+      ) + 
+    viridis::scale_color_viridis(discrete=TRUE) +
+    theme_minimal() +
+    theme(legend.key  = element_rect(fill = "#ffffff")) 
+```
+
+# Reflection 
+I learned that it could be hard obtaining higher accuracy scores because there are so many different models to try (which take forever!) as well as numerous parameters to tweek with. It was very challenging to keep track of everything and remember what I already tried days before. I discovered that I really got into this and was trying everything I could to get a better score. It was fun! 
+
+--End--
+
+# Optional feedback: 
+
+How hard was this assignment? Was it: too hard, too easy, or just right? 
+
+ANSWER: Just right
+
+Approximately how long did this assignment take you? 
+
+ANSWER: 8 hours
+
+Final Accuracy Results: 0.7275 = 0.73
+
+
+
+
+
+

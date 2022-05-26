@@ -1,0 +1,177 @@
+---
+title: "Predict.4 In Class Finisher (Clustering)"
+author: "Your Name"
+date: "3/12/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(mclust)
+```
+
+# Import 
+Import the covid feb 2022 dataset. 
+```{r}
+covid_numbers_feb_2022 <- read_csv("../../Data/covid_numbers_feb_2022.csv")
+```
+
+# Cleaning 
+Clustering requires that the data be clean, scaled, and without NAs. Because we have already run similar code in our MLR modeling day, run the following code chunk to clean the data. 
+```{r}
+covid_clean <- covid_numbers_feb_2022 %>% 
+  # Removing large factor and character columns
+  select(-state, -county, -state.y, -fips) %>% 
+  # Simplifying mask requirement 
+  mutate(mask_requirement2020 = fct_lump(mask_requirement2020, n = 2)) %>% 
+  # Creating dummy columns
+  fastDummies::dummy_cols(remove_first_dummy = TRUE, 
+                          ignore_na = TRUE, 
+                          remove_selected_columns = TRUE) %>% 
+  # Making variables per capita
+  mutate(icu_beds_per_cap = icu_beds/POPESTIMATE2020, 
+         cases_per_cap = cases/POPESTIMATE2020) %>% 
+  select(-cases, -icu_beds) %>% 
+  # Replacing missing values with mean
+  mutate(across(where(is.numeric), ~replace_na(.x, median(.x, na.rm = TRUE)))) %>% 
+  # Scaling the data with z score standardization
+  scale() %>% 
+  as_tibble()
+```
+
+# Introduction
+Clustering is a type of unsupervised machine learning, meaning there is no label. Instead various algorithms are used to try to identify groupings with our data. We will talk about three clustering methods.  
+
+# Exploration
+Sometimes it can be helpful if we can identify clusters visually before we get started with cluster analysis. 
+```{r}
+# Since we have so many variables, let's just plot the first 8. 
+plot(covid_clean[1:8])
+```
+
+Q: Do you see any clusters?  
+A: There aren't any obvious clusters, but there are some variables that look like they have some groupings.
+
+# K-means clustering 
+Not to be confused with kNN which we used to impute data, K-means is a clustering method. It requires us to first figure out the optimum number of clusters. Run the code below and look at the sum of squares graph. 
+```{r}
+wss <- (nrow(covid_clean)-1)*sum(apply(covid_clean,2,var))
+for (i in 2:15) wss[i] <- sum(kmeans(covid_clean, centers=i)$withinss)
+
+plot(1:15, wss, type="b", xlab="Number of Clusters",
+  ylab="Within groups sum of squares")
+```
+
+The creation of this graph is kind of a confusing process, so don't worry about that for this class. We just have to know what we are looking for. Each point represents adding one more cluster into our analysis. If there is a large vertical drop between points, that represents that a large amount of variation between points was explained by adding one more grouping. So what we have to look for is a point where adding one more grouping doesn't significantly reduce variability. 
+
+One way to do this is by looking for an "elbow," or a downward bend between three points. This method lends us to choose 6 as a potential number of clusters because changing it from 5 to 6 does a lot more difference than 6 to 7. 
+
+The other way to decide is also somewhat arbitrary. You can just decide what number looks like adding another won't make significant difference. For example, the gap between 1 to 2 clusters is huge, and also 2 to 3 and 3 to 4 are also larger, but 4 to 5 is a little less, so we could choose 4. 
+
+At this point 4 or 6 would work. It just depends on your analysis and if more or fewer groups are beneficial. To keep it simpler, let's choose 4. 
+```{r}
+# K-Means Cluster Analysis
+(fit <- kmeans(covid_clean, 4))
+```
+
+Q: How many observations are in each group?  
+A: 377, 877, 2390, 245
+
+Q: Which group has the highest mean population?  
+A: 4 
+
+Q: What percent of the variation is described by these groups?  
+A: 22.6%
+
+Now that we have these clusters we can append this as a new variable in our dataset. 
+```{r}
+# Make a new dataset called covid_clusters with the clusters appended as a new variable 
+covid_clusters <- covid_clean %>% mutate(clusters = fit$cluster)
+```
+
+Let's see how this looks in graphical form. We are going to recreate our correlation matrix, this time coloring by cluster. 
+
+```{r}
+plot(covid_clusters[1:8], col = covid_clusters$clusters)
+```
+
+Q: How did the clustering do on these variables?  
+A: There are some variables that are very mixed, but it did seem to identify some groupings in other columns. 
+
+# Hierarchical Clustering
+The first step in hierarchical clustering is to make a distance matrix. All these steps are easier to see with a smaller dataset so we'll start with that.
+```{r}
+# Here is our sample dataset of 20 values
+sample_covid <- sample_n(covid_clean, 20)
+
+# Make a distance matrix 
+d <- dist(sample_covid)
+
+# Print it out 
+round(d, 2)
+```
+
+Q: Is observation 1 farther from observation 2 or 3?  
+A: It depends on our random sample, but we need to compare the top two numbers.
+
+Once we have our matrix, we can create the model by running the hclust function. hclust has multiple methods of creating a hierarchy, which you can see by running ?hclust. Each of these is preferable for a different type of dataset and knowing which to use is outside of the realm of this class. For now we will stick with the default method, which is "complete".
+```{r}
+fitH <- hclust(d)
+plot(fitH) 
+```
+
+These hierarchies work by first considering every observation its own cluster, then combining clusters together until there is only one cluster remaining. We can then choose how many clusters we want and this hierarchy will be "cut". I recommend choosing the same number of clusters as you did for k means. 
+```{r}
+# We can see how these clusters show up in our correlation matrix
+clusters <- cutree(fitH, k = 4) 
+plot(sample_covid[1:8], col = clusters)
+```
+
+Now that we have done this for a subset of the data, run the following code to use the whole dataset.
+```{r}
+# Make a distance matrix 
+d <- dist(covid_clean)
+
+# Plot it 
+fitH <- hclust(d)
+plot(fitH) 
+
+# Use clusters to plot correlation matrix
+clusters <- cutree(fitH, k = 4) 
+plot(covid_clean[1:8], col = clusters)
+```
+
+From here we can evaluate which method we think did better at clustering our data. We could also try different methods for our hierarchy. 
+
+# Model Clustering
+There is a package called mclust which has automated a modeling process for us. It uses Gaussian mixtures to cluster our data.
+```{r}
+# Use the Mclust function to run several clustering algorithms at once. 
+fitM <- Mclust(covid_clean)
+
+# Print the model
+fitM
+```
+This model object says XXX,1 which means that it hasn't chosen a model for us and it is only considering 1 cluster. That indicates that this is probably not the best set of algorithms for this data. 
+
+If we want to we can force the model to create at least 2 clusters by adding the parameter G. 
+```{r}
+# Use the Mclust function to run several clustering algorithms at once. 
+fitM <- Mclust(covid_clean, G = 2:10)
+
+# Print the model
+fitM
+```
+This time it has used an algorithm, "EEE" and has chosen 10 clusters. Since this is the maximum amount of custers we allowed it to choose, I think this may not be a great fit. But we can check it out plotted. 
+
+These plots won't knit, so we have turned this code chunk to false, but we can run the code below and look at the plots. 
+```{r, eval = FALSE}
+# Plot the model
+plot(fitM)
+```
+
+
+# References
+Thanks to Hefin Rhys, his youtube video below was really helpful and pulled from heavily for this class.
+https://www.youtube.com/watch?v=PX5nSBGB5Tw&ab_channel=HefinRhys

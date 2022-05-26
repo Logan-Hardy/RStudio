@@ -1,0 +1,340 @@
+---
+title: "Predict.5 In Class Finisher"
+author: "Your Name"
+date: "3/16/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(fastDummies)
+library(caret)
+library(VIM)
+```
+
+# Introduction 
+Now that we have covered some machine learning techniques and algorithms one by one, it's time to put these together. Ideally, we want to make this process as automated as possible, so that you can use the same functions on multiple datasets. We are therefore going to use functions as much as possible so at the end we can make this all into a pipeline. We will also introduce a few final modeling techniques. 
+
+# Import
+Import our favorite covid numbers dataset. Mutate character columns to be factors. 
+```{r}
+covid_numbers_feb_2022 <- read_csv("~/Desktop/R Working Directory/Datasets for playing/COVID Data/UPDATE Covid Counties and States Feb 2022/covid_numbers_feb_2022.csv") %>% mutate_if(is.character, as.factor)
+```
+
+# Preprocessing
+Preprocessing is essentially data cleaning for modeling. 
+
+## Remove empty rows and columns
+This is currently set to just remove totally empty columns, but increasing the cutoff will increase the number of columns removed. 
+```{r}
+remove_empty <- function(df, cutoff = 1) {
+  df <- df[rowSums(is.na(df)) != ncol(df),]
+  df <- df %>% select_if(!colSums(is.na(df)) > nrow(df)/cutoff)
+  return(df)
+}
+
+df <- remove_empty(covid_numbers_feb_2022)
+```
+
+## Lumping factors 
+This automatically lumps factor variables. It is set to lump all factors that are used less than 5% of the time, but that proportion can be changed. You can also set this function to remove, or not remove, the label. We will remove the label for categorical data and not for numerical labels. 
+```{r}
+lump_factors <- function(df, label, prop = .05, remove_label = TRUE) {
+  if (remove_label) {
+    df <- df %>% select(-{{label}}) %>% mutate(across(where(is.factor), ~fct_lump_prop(.x, prop = prop)))
+  } else {
+    df <- df %>% mutate(across(where(is.factor), ~fct_lump_prop(.x, prop = prop)))
+  }
+  return(df)
+}
+
+df <- lump_factors(df, label = Metro_status)
+```
+
+## Dummy cols
+This function makes dummy columns. We remove categorical labels so they don't get made into dummy columns with the rest of the factors. 
+```{r}
+make_dummies <- function(df) {
+  df <- df %>% dummy_cols(remove_first_dummy = TRUE, 
+                        ignore_na = TRUE,
+                        remove_selected_columns = TRUE)
+  return(df)
+}
+df <- make_dummies(df)
+```
+
+## Imputing data 
+This function enables us to choose several methods for imputing data. The default is knn, but you can also do mean or median. 
+```{r}
+impute <- function(df, method = "knn"){
+  if(method == "knn"){
+    df <- predict(preProcess(as.data.frame(df), method = "knnImpute"), as.data.frame(df))
+  } else if (method == "mean"){
+    df <- df %>% mutate(across(where(is.numeric), ~replace_na(.x, mean(.x, na.rm = TRUE))))
+  } else if (method == "median"){
+    df <- df %>% mutate(across(where(is.numeric), ~replace_na(.x, median(.x, na.rm = TRUE))))
+  } else {
+    stop("Please pick a valid method: 'knn', 'mean', or 'median'.")
+  }
+}
+
+df <- impute(df)
+```
+
+## Zero variance predictors 
+Variables that have all the same value (zero variance) or almost all the same value (near zero variance) can gum up our models. The following function will help us get rid of them. You can choose to have the function report which variable it is removing or not. 
+```{r}
+remove_near_zero <- function(df, print_results = FALSE) {
+  nzv <- nearZeroVar(df)
+  if(is.null(nzv) | length(nzv) == 0) {
+    if(print_results) print("Near Zero Variables: None")
+  } else {
+    df <- df[,-nzv]
+    if(print_results) {
+      print("Near Zero Variables: ") 
+      print(nzv)
+    }
+  }
+  return(df)
+}
+
+df <- remove_near_zero(df, print_results = TRUE)
+```
+
+## Linear Combos
+When several columns can be added up to get the last column, this is called a linear combo and one column should be deleted. The following function does this. Can you figure out which column is being removed and why? You can also print or hide the results of which column (if any) is being removed. 
+```{r}
+remove_linear_combos <- function(df, print_results = FALSE){
+  combos <- findLinearCombos(df)
+  if(is.null(combos$remove)) {
+    if(print_results) print(paste0("Linear Combos: None")) 
+  } else {
+    if(print_results) print(combos)
+    df <- df[-combos$remove]
+  }
+  return(df)
+}
+
+df <- remove_linear_combos(df, print_results = TRUE)
+```
+
+## Correlation 
+Some models can handle highly correlated predictors just fine, but others may need them removed in order to function at their highest potential. The following code will remove variables that are too correlated. The default correlation is .75 but this can be changed with the cutoff parameter. 
+```{r}
+remove_correlated <- function(df, print_results = FALSE, cutoff = .75) {
+  highlyCorDescr <- findCorrelation(cor(df), cutoff = cutoff)
+  if(length(highlyCorDescr) == 0){
+    if(print_results) print("Highly Correlated Variables: None")
+  } else {
+    df <- df[,-highlyCorDescr]
+    if(print_results) {
+      print("Highly Correlated Variables: ")
+      print(highlyCorDescr)
+    }
+  }
+  return(df)
+}
+
+df <- remove_correlated(df, print_results = TRUE)
+```
+
+## Scaling 
+This function normalizes our data for those models that require it. 
+```{r}
+scale_data <- function(df){
+  df <- df %>% scale() %>% as_tibble()
+  return(df)
+}
+
+df <- scale_data(df)
+```
+
+## Replace label 
+Now that we have cleaned the rest of the data besides the label, we have to put it back together with the rest of the data. We also need to remove any NAs in the label. 
+```{r}
+replace_label <- function(df_cleaned, df_original, label){
+  df <- cbind(df_original %>% select({{label}}), df_cleaned) %>% na.omit()
+  return(df)
+}
+df <- replace_label(df, covid_numbers_feb_2022, Metro_status)
+```
+
+# Classification
+Now that we have explored the preprocessing functions, it's time we actually string all of these together. Note: We will be preprocessing the train and test data separately, because we don't want our test dataset to influence the model at all. 
+
+## Step 1: Split data
+This method of splitting the data will enable us to use set.seed, meaning our train and test datasets will be uniform. 
+```{r}
+set.seed(21)
+sample <- trainIndex <- createDataPartition(covid_numbers_feb_2022$Metro_status, p = .7, 
+                                  list = FALSE, 
+                                  times = 1)
+train <- covid_numbers_feb_2022[sample,]
+test <- covid_numbers_feb_2022[-sample,]
+```
+
+## Step 2: Preprocess train data
+Because all of our functions have the dataset as the first parameter, they are pipeable. 
+```{r, warning=FALSE}
+train_processed <- train %>% 
+  remove_empty() %>% 
+  lump_factors(label = Metro_status) %>% 
+  make_dummies() %>% 
+  impute() %>% 
+  remove_near_zero() %>% 
+  remove_linear_combos() %>% 
+  remove_correlated() %>% 
+  scale_data() %>% 
+  replace_label(train, Metro_status)
+```
+
+## Step 3: Preprocess test data
+We use almost the same functions for the test dataset, but just in case our test dataset has slightly different characteristics, we omit most of our functions that remove variables and instead match our train dataset's variable list. 
+```{r, warning = FALSE}
+test_processed <- test %>% 
+  remove_empty() %>% 
+  lump_factors(label = Metro_status) %>% 
+  make_dummies() %>% 
+  impute() %>% 
+  remove_near_zero() %>% 
+  scale_data() %>% 
+  replace_label(test, Metro_status) %>% 
+  select(colnames(train_processed))
+```
+
+## Step 4: Train models
+Here is the function for training a model. 
+```{r}
+(model <- train(Metro_status ~., train_processed, method = "lda"))
+```
+
+Using the classification_train function below, we can run several models at once and have it import the most relevant information for us so we can easily compare them. The function will also time how long it takes to run each model, which is helpful for us to determiene which model we want to use ultimately. 
+```{r, warning = FALSE}
+classification_train <- function(df, label, method = "lda") {
+    start_time <- proc.time()[3]
+    model <- train(as.formula(paste(label, "~.", collapse="")), df, method = method)
+    if (model[["modelType"]] == "Classification") {
+    accuracy <- max(model[["results"]][["Accuracy"]])
+    print(paste0("Model: ", method, "    Accuracy: ", round(accuracy, 2), "   Time: ", round(proc.time()[3] - start_time, 2)))
+    } else {
+      rmse <- min(model[["results"]][["RMSE"]])
+      mae <- min(model[["results"]][["MAE"]])
+      r2 <- max(model[["results"]][["Rsquared"]])
+      print(paste0("Model: ", method, "    RMSE: ", round(rmse, 2),"    MAE: ", round(mae, 2),"    R-squared: ", round(r2, 2), "   Time: ", round(proc.time()[3] - start_time, 2)))
+    }
+    return(model)
+}
+```
+
+Here are three classification models we can compare. (This will take a little while to run).
+```{r, warning = FALSE}
+# Linear Discriminant Analysis 
+model_lda <- classification_train(train_processed, "Metro_status", method = "lda")
+# Random Forest
+model_rf <- classification_train(train_processed, "Metro_status", method = "rf")
+# Support Vector Machines
+model_svm <- classification_train(train_processed, "Metro_status", method = "svmLinearWeights2")
+```
+
+Q: Why does this random forest take longer to run than when we used the randomforest package?  
+A: Because the train function tries to optimize our random forest model for us, so it's really running several random forest models and picking the best.  
+
+## Step 5: Evaluate performance
+Now we want to check the accuracy with our test dataset.
+```{r}
+# Accuracy of lda model
+predicted <- predict(model_lda, test_processed)
+print(paste0("Accuracy: ", round(confusionMatrix(test_processed$Metro_status, predicted)[["overall"]][["Accuracy"]], 2)))
+
+# Accuracy of random forest model
+predicted <- predict(model_rf, test_processed)
+print(paste0("Accuracy: ", round(confusionMatrix(test_processed$Metro_status, predicted)[["overall"]][["Accuracy"]], 2)))
+
+# Accuracy of svm model
+predicted <- predict(model_svm, test_processed)
+print(paste0("Accuracy: ", round(confusionMatrix(test_processed$Metro_status, predicted)[["overall"]][["Accuracy"]], 2)))
+```
+
+Here it looks like the svm model it actually the best at predicting unknown data. 
+
+## Step 6: Use model
+We can save our model as an rds file. This can then be reimported into R and used to predict other unknown data. 
+```{r}
+saveRDS(model_svm, "model.rds")
+```
+
+```{r}
+super_model <- readRDS("model.rds")
+```
+
+# Regression
+Now let's see how this differs (slightly) for regression models (which have a numeric label). Let's run a model to predict poverty percentage. 
+
+## Step 1: Split data
+Just like with our classification model, the first step is to split the data into train and test. Since we have already done that, we can use the train/test data from before. 
+
+## Step 2: Preprocess train data
+This step is almost the same. The only difference is that everything needs to be numerical, including the label, so we don't need to use the replace label function and we will turn "remove_label" to FALSE on the lump factor function. We also don't need to scale our data for this model. 
+```{r, warning = FALSE}
+train_processed <- train %>% 
+  remove_empty() %>% 
+  lump_factors(label = pov_perc, remove_label = FALSE) %>% 
+  make_dummies() %>% 
+  impute() %>% 
+  remove_near_zero() %>% 
+  remove_linear_combos() %>% 
+  remove_correlated() 
+```
+
+## Step 3: Preprocess test data
+```{r, warning = FALSE}
+test_processed <- test %>% 
+  remove_empty() %>% 
+  lump_factors(label = pov_perc, remove_label = FALSE) %>% 
+  make_dummies() %>% 
+  impute() %>% 
+  select(colnames(train_processed))
+```
+
+## Step 4: Train models
+```{r, warning=FALSE}
+# Lasso
+model_lasso <- classification_train(train_processed, "pov_perc", method = "lasso")
+# Linear Regression
+model_lm <- classification_train(train_processed, "pov_perc", method = "lm")
+# Elasticnet
+model_enet <- classification_train(train_processed, "pov_perc", method = "enet")
+```
+
+## Step 5: Evaluate performance
+```{r}
+# Accuracy of lda model
+predicted <- predict(model_lasso, test_processed)
+print(paste0("RMSE: ", round(RMSE(predicted, test_processed$pov_perc), 3), "   MAE: ", 
+round(MAE(predicted, test_processed$pov_perc), 3)))
+
+
+# Accuracy of random forest model
+predicted <- predict(model_lm, test_processed)
+print(paste0("RMSE: ", round(RMSE(predicted, test_processed$pov_perc), 3), "   MAE: ", 
+round(MAE(predicted, test_processed$pov_perc), 3)))
+
+# Accuracy of svm model
+predicted <- predict(model_enet, test_processed)
+print(paste0("RMSE: ", round(RMSE(predicted, test_processed$pov_perc), 3), "   MAE: ", 
+round(MAE(predicted, test_processed$pov_perc), 3)))
+```
+
+## Step 6: Use model
+Just like with classification models, you can export and import these regression models.
+```{r}
+saveRDS(model_lm, "regression_model.rds")
+```
+
+```{r}
+super_regression_model <- readRDS("model.rds")
+```
+
+
+

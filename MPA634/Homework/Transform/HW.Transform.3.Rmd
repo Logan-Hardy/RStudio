@@ -1,0 +1,123 @@
+---
+title: "HW.Transform.3"
+author: "Logan Hardy"
+date: "1/26/2022"
+output: html_document
+---
+
+25 points (20 for this assignment, 5 for being on time)
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, 
+                      message = FALSE)
+library(tidyverse)
+library(gapminder)
+library(ggthemes)
+
+# Load theme_new from the visualization RMD
+theme_new <-  theme_fivethirtyeight(base_size=12#,base_family="Open Sans"
+                                    ) %+replace% theme(panel.grid.major.y = element_line(colour = "grey80", size = 0.25),  panel.grid.major.x = element_blank(), panel.background = element_rect(fill = "white"), plot.background = element_rect(fill = "white"), legend.background = element_rect(fill = "white")) 
+
+```
+
+# Import data
+Import the enrollment 2020 dataset
+```{r}
+enrollment_2020 <- read_csv("../Data/enrollment_2020.csv") %>% mutate_if(is.character, as.vector)
+```
+
+Explore this data briefly in the console or in a View tab. 
+
+# Exercise 1 (10 points)
+Create a scatterplot that answers the following question: Do schools with more economically disadvantaged students have more students with disabilities? (Make sure to include appropriate labels) A: The data would suggest schools with more economically disadvantaged students have more students with disabilities with a positive trendline (which would be expected with bigger schools with more students)
+```{r}
+enrollment_2020 %>% 
+        ggplot(aes(x = `Economically Disadvantaged`, y = `Student With a Disability`)) + 
+        geom_point(color = "#183054", alpha = .1) + 
+        stat_smooth(color = "#ffa781", alpha = .2, size = .7) +
+        labs(title = "Economically Disadvantaged and Disabled Students", 
+            subtitle = "Does not take into account number of students enrolled at the school ", 
+            x = "Economically Disadvantaged", 
+            y = "Students with a Disability") +
+        theme_new + 
+        theme(axis.title = element_text(size = 7, color = "grey40"))
+
+```
+
+While this is a somewhat useful graph, it seems obvious that a relationship would be present just because the more students a school has, the students it would have with both disabilities and economic disadvantage. A more useful graph would be one that shows the *rate* of students with disabilities and the *rate* of students with economic disadvantage. Hint: rate is found by dividing a smaller subset by the total. So the rate of COVID cases in the US is found by the following equation: (number of people with covid in US)/(total US population)
+
+Use your newfound dplyr skills to make new columns that are the rates of students with economic disavantage and disabilities. Then use those new columns to make a revised version of the graphs.
+```{r}
+enrollment_2020 %>% mutate(econ_dis_rate = `Economically Disadvantaged`/`Total K-12`, disability_rate = `Student With a Disability`/`Total K-12`) %>%
+  ggplot(aes(x = econ_dis_rate, y = disability_rate)) + 
+        geom_point(color = "#183054", alpha = .1) + 
+        stat_smooth(color = "#ffa781", alpha = .2, size = .7) +
+        labs(title = "Rates of Disadvantaged and Disabled Students", 
+            subtitle = "Slight positive trendline", 
+            x = "Economically Disadvantaged Rate", 
+            y = "Students with a Disability Rate") +
+        theme_new + 
+        theme(axis.title = element_text(size = 7, color = "grey40"))
+
+```
+
+Q: In 2-3 sentences, what does this graph tell you? 
+A: When taking into account the number of students at the school, the correlation between the economically disadvantaged students and students with a disability are not as strongly correlated. These two new columns have a correlation of 0.2093467 which add to the graph and further suggests that these two are related, where as one increases, the other would probably increase as well.  
+
+# Exercise 2 (10 points)
+Do public (district) or charter schools have more students of color? A: Charter schools tend to have higher rates of students of color, but not by much. 
+
+This time I want you to create 2-3 graphs that explore this question on your own. Just like the question above, you may want to think not only in terms of total students but also in terms of *rates*. Make sure to finish labeling your graphs and include theme_new in them.
+```{r}
+enrollment_2020 %>% mutate(students_of_color_rate = (`Total K-12` - White)/`Total K-12`) %>%
+  ggplot(aes(x = fct_reorder(`LEA TYPE`, students_of_color_rate, median, na.rm = TRUE), y = students_of_color_rate, fill = `LEA TYPE`)) + 
+        geom_boxplot(outlier.alpha = 0.1) +
+        
+        labs(title = "Rates of Students of Color: Public vs Charter Schools", 
+            subtitle = "Charter Schools tend to have higher rates of students of color", 
+            x = "Type of School") +
+        theme_new + 
+        theme(axis.title = element_text(size = 7, color = "grey40"),
+              axis.title.x = element_text(hjust = .02, vjust = .4),
+              legend.position = "none")
+
+
+enrollment_2020 %>% mutate(students_of_color_rate = (`Total K-12` - White)/`Total K-12`) %>%
+        ggplot(aes(x = students_of_color_rate, fill = `LEA TYPE`, color = `LEA TYPE`)) + 
+        geom_density(alpha = .3) +
+        labs(title = "Rates of Students of Color: Public vs Charter Schools", 
+            subtitle = "Public and Charter School Appear to Follow the Same Trend", 
+            x = "X Variable") + 
+        facet_wrap(~`LEA TYPE`) + 
+        theme_new + 
+        theme(legend.position = "right", 
+              legend.direction = "vertical", 
+              axis.title = element_text(size = 7, color = "grey40"), 
+              axis.text.y = element_blank())
+
+enrollment_2020 %>% mutate(students_of_color_rate = (`Total K-12` - White)/`Total K-12`) %>%
+  ggplot(aes(x = `LEA TYPE`, y = students_of_color_rate, color = `LEA TYPE`)) + 
+        geom_dotplot(binaxis = "y", binwidth = 0.015, stackdir = "center") + # You'll have to change the binwidth for your particular dataset. 
+        labs(title = "Rates of Students of Color: Public vs Charter Schools", 
+            subtitle = "District Schools Have a Much Larger Peak", 
+            x = "") +
+        theme_new + 
+        theme(axis.title = element_text(size = 7, color = "grey40"),
+              axis.title.x = element_text(hjust = .02, vjust = .4),
+              legend.position = "none")
+
+```
+
+Q: In 3-4 sentences, which of your graphs was the most informative? What did you learn from your graphs? 
+A: I found the dot plot the most informative because it best shows the distribution of the students of color between the two schools as well as the number of records between the them.  With the box plot, it was harder to tell the number of observations in each type of school as well as the kurtosis; it simply appeared that charter schools had higher rates of students of color.  At first I found the density plot the least helpful for this specific example, but then realized that it could be used as evidence that there isn't that much of a difference between the two type of schools. Overall, I learned that each type of graph has their usefulness and tells a certain insight into the story.  
+
+# Optional feedback: 
+
+How hard was this assignment? Was it: too hard, too easy, or just right? 
+
+ANSWER: Just right
+
+Approximately how long did this assignment take you? 
+
+ANSWER: 3 hours 
+

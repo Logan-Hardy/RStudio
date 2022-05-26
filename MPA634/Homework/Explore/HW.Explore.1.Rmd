@@ -1,0 +1,91 @@
+---
+title: "HW.Explore.1"
+author: "Logan Hardy"
+date: "01/06/2021"
+output: html_document
+---
+20 points (15 for this assignment, 5 for being on time)
+
+Change "Your Name" in the YAML to your name. 
+
+1. Create a new object called integer1 and assign the value of 15 to it. Print it out at the same time you create it. Create another object called integer2 and assign the value of 12 to it. Run the code chunk. Print it out at the same time you create it.
+```{r}
+(integer1 <- 15)
+(integer2 <- 12)
+
+```
+
+2. Subtract integer2 from integer1 using their object names. 
+```{r}
+integer1 - integer2
+```
+
+3. Make an empty vector called "strings"
+```{r}
+strings <- c()
+```
+
+4. Overwrite that strings vector with a vector which contains the following words: "data", "science", "is", "fun".
+```{r}
+strings = c("data", "science", "is", "fun")
+```
+
+5. Print out the fourth value in that vector. 
+```{r}
+strings[4]
+```
+
+6. (2 points) Make a named list of the class names you are taking this semester (you can use a short or long version of the name) and the credit hours that each is. Name the vector whatever you like. An example of an entry could be "Data Visualization" = 1.5
+```{r}
+classes = list('MPA 634' = 3, 'IS 566' = 3, 'MSB 542' = 3, 'STAT 511' = 3, 'GSCM 530' = 3)
+
+```
+
+7. Print out the second class by its name. (Note: If you have a space in the name of the class, you will need to include ` around the name of the class since R doesn't like spaces.)
+```{r}
+classes$'IS 566'
+
+```
+
+8. (2 points) Now do the same in two different vectors. Create a "classes" vector with the class names. Then create a "hours" vector with the credit hours. 
+```{r}
+classes <- c('MPA 634', 'IS 566', 'MSB 542', 'STAT 511', 'GSCM 530')
+hours <- c(3,3,3,3,3)
+```
+
+9. (2 points) Make a dataframe called class_hours with the two vectors. 
+```{r}
+class_hours <- data.frame(classes, hours)
+```
+
+10. Print out the dataframe by its name.
+```{r}
+class_hours
+```
+
+11. Print out the first column of the dataset by its *index*. 
+```{r}
+class_hours[[1]]
+```
+
+12. Print out the second column of the dataset by its *name*. 
+```{r}
+class_hours$hours
+```
+
+--End--
+
+Press the "knit" button at the top of this window and submit the html version to Canvas. If you have trouble knitting, please contact me or a TA. 
+
+
+# Optional feedback: 
+
+How hard was this assignment? Was it: too hard, too easy, or just right? 
+
+ANSWER: Just right
+
+Approximately how long did this assignment take you? 
+
+ANSWER: 1 hour
+
+

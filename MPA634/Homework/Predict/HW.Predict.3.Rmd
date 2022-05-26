@@ -1,0 +1,185 @@
+---
+title: "HW.Predict.3"
+author: "Logan Hardy"
+date: "3/23/2022"
+output: html_document
+---
+
+25 points (20 for this assignment, 5 for being on time)
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(randomForest)
+library(caret)
+library(cvms)
+```
+
+# Importing Data 
+Import the life expectancy dataset. Make strings into factor variables. 
+```{r}
+life_expectancy <- read_csv("../../Data/Life Expectancy Data.csv") %>% mutate_if(is.character, as.factor)
+
+```
+
+It may be helpful to glance through this dataset again. Instead of predicting the life expectancy this time, we are going to use this data to predict the country status (developing or developed).
+
+# Cleaning (2 points)
+Make a copy of the dataset and drop the country variable since it has a lot of unique values, and these values are also perfectly correlated with our label variable. 
+```{r}
+life_expectancy_copy <- life_expectancy %>% select(-Country)
+
+```
+
+Random forest doesn't like variable names with spaces in them. Edit the following code to replace spaces with "_".
+```{r}
+colnames(life_expectancy_copy) <- str_replace_all(colnames(life_expectancy_copy), c(" " = "_", 
+                                                "-" = "_", 
+                                                "/" = "_"))
+```
+
+# Imputing data with random forest (2 points) 
+Set the seed to 1234
+```{r}
+set.seed(1234)
+
+```
+
+Make a new dataset copy that will have no NAs in it. Remember, the random forest imputer cannot accept any NAs in the label variable. Determing if there is missing data in our label. If so, filter it out. Then impute the rest of the missing data using the random forest imputer with 6 iterations (like in class). 
+```{r}
+life_expectancy_copy <- life_expectancy_copy %>% filter(!is.na(Status))
+
+life_expectancy_no_nas <- rfImpute(Status ~ ., data = life_expectancy_copy, iter=6)
+
+```
+
+Q: Does the error continue to go down the more iterations we try?
+A: No
+1.29%, 1.46%, 1.29%, 1.33%, 1.40%, 1.46%
+
+## Setting up train and test (2 points)
+Make a train and test dataset with the no NA data. 
+```{r}
+sample <- sort(sample(nrow(life_expectancy_no_nas), nrow(life_expectancy_no_nas)*.7))
+
+# Create the train and test data from this sample. 
+train <- life_expectancy_no_nas[sample,]
+test <- life_expectancy_no_nas[-sample,]
+
+```
+
+# Create the model (1 point)
+
+Create a random forest model. Print out the results. 
+```{r}
+model <- randomForest(Status ~ ., data = train, ntrees = 500, proximity = TRUE, mtry=4)
+
+model
+```
+
+Q: What is the accuracy of this model?  
+A: mtry=2: 98.35
+   mtry=4: 98.30
+
+# Number of trees (2 points)
+Plot the model.
+```{r}
+plot(model)
+
+```
+
+Q:  Would more trees significantly improve model accuracy?  
+A: No, more trees would not significantly improve model accuracy 
+
+# Adjusting the number of variables to try (2 points)
+Run the tuneRF function to try different numbers of variables at once.  
+```{r}
+t <- tuneRF(x = train %>% select(-Status), y = train$Status, stepFactor=1.5, improve=1e-5, ntree=500)
+
+print(t)
+
+```
+
+Q: How does this number compare with the default number of variables in our previous model?   
+A: 4 - it's larger than the default number 2
+
+# Confusion Matrix (2 points)
+Generate a confusion matrix in plot form for the test data using the plot_confusion_matrix function. (You will first have to generate the matrix itself and the predictions!)
+```{r}
+predicted <- predict(model, test)
+cm2 <- confusion_matrix(test$Status, predicted)
+plot_confusion_matrix(cm2$`Confusion Matrix`[[1]])
+
+
+
+
+```
+
+Q: How many observations were predicted to me developed countries but were actually developing?  
+A: 10
+
+# Feature importance (2 points)
+Make a graph that shows which variables were the most important in determining our label. 
+```{r}
+importance(model) %>% 
+  as.data.frame() %>% 
+  tibble::rownames_to_column() %>% 
+  ggplot(aes(y = fct_reorder(rowname, MeanDecreaseGini), x = MeanDecreaseGini, fill = rowname)) + 
+  geom_col() + 
+  labs(title = "Importance of Variables in Model", 
+       x = "Importance", 
+       y = "Variables") + 
+  theme_minimal() + 
+  theme(legend.position = "none")
+
+```
+
+Q: What were the first three most important variables?  
+A: Income_composition_of_resources, Alcohol, Life_expectancy 
+
+# Parallel Coordinate Plot (3 points)
+Just using the first ten variables and the train dataset, make a parallel coordinate plot of this data.
+```{r, fig.width = 9}
+train %>% 
+    GGally::ggparcoord(
+      columns = c(2:10), 
+      groupColumn = 1, 
+      showPoints = TRUE, 
+      title = "Parallel Coordinate Plot of Status",
+      alphaLines = 0.5
+      ) + 
+    viridis::scale_color_viridis(discrete=TRUE) +
+    theme_minimal() +
+    theme(legend.key  = element_rect(fill = "#ffffff")) 
+
+```
+
+Q: Please discuss 2 findings from this graph.   
+A: Developing countries seem to have low Life expectancy with high infant deaths and adult mortality rates.  This is probably in accordance with what most people would assume.  Developing countries also had high measles with low hepatitis_B.  I would have thought these two diseases would both be higher in developing countries.  
+
+# Random Forest Regressor (2 points)
+Now generate a random forest model using the test dataset that predicts life expectancy. Print out the results
+```{r}
+model <- randomForest(Life_expectancy ~ ., data = test, ntrees = 500, proximity = TRUE, mtry=4)
+
+model
+
+```
+
+Q: What percent of variation in life expectancy is explained by this model? 
+A: 94.09%
+
+Q: How does this compare with the R squared in your best multilinear regression model from the prior assignment?  
+A: It is much higher.  The R squared in my best multilinear regression model from the prior assignment was 0.846 (about 84.6%)
+
+--End-- 
+
+# Optional feedback: 
+
+How hard was this assignment? Was it: too hard, too easy, or just right? 
+
+ANSWER: Just right
+
+Approximately how long did this assignment take you? 
+
+ANSWER: 2.5 hours

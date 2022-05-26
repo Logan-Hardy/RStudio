@@ -1,0 +1,171 @@
+---
+title: "HW.Explore.3"
+author: "Logan Hardy"
+date: "1/13/2022"
+output: html_document
+---
+
+30 points (25 for this assignment, 5 for being on time)
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(moments)
+library(lubridate)
+library(ggthemes)
+```
+
+# Import the data (2 points)
+Import the mental health survey data using the third method we used in the in class file (readr with character to factor conversion) 
+```{r}
+mental_health_tech_survey <- read_csv("../Data/mental_health_tech_survey.csv") %>% mutate_if(is.character, as.factor)
+```
+
+## Factor Functions (6 points)
+Using the gender variable, please complete the following: 
+
+1. Print out all the categories in alphabetical order. 
+2. Print out how many levels there are. 
+3. Print out a table of all of the categories and their frequencies. 
+4. Print out the number of missing values in this column. 
+
+```{r}
+sort(unique(mental_health_tech_survey$Gender))
+length(unique(mental_health_tech_survey$Gender))
+fct_count(mental_health_tech_survey$Gender, sort = TRUE)
+
+is.na(mental_health_tech_survey$Gender)
+```
+
+Q: Based on what you see here, is this factor column clean? (Meaning there are no duplicate groups or typos.) If not, what are some things you would change? 
+A: No, combine duplicate groups/typos together (M, m, Male, male, Mail, Mal all as Male)
+
+Q: Please list five levels found in this factor variable that could be combined into a single level 
+A: M, m, Male, male, Mail, Mal all as Male
+
+## Numeric Functions (8 points)
+Note, you can perform many numeric functions on POSIXct variables. Check to make sure that your Timestamp variable is in the POSIXct format. If it is not, make sure you imported your dataset using read_csv() instead of read.csv(). If you still can't get it into a POSIXct format please contact me or a TA. 
+
+For the Timestamp variable, use all of our numeric functions on it. 
+
+1. Find the median
+2. Find the minimum and maximum
+3. Find the kurtosis and skew
+4. Find the quantiles
+
+```{r}
+#str(mental_health_tech_survey)
+median(mental_health_tech_survey$Timestamp, na.rm = TRUE)
+min(mental_health_tech_survey$Timestamp, na.rm = TRUE)
+max(mental_health_tech_survey$Timestamp, na.rm = TRUE)
+kurtosis(mental_health_tech_survey$Timestamp, na.rm = TRUE)
+skewness(mental_health_tech_survey$Timestamp, na.rm = TRUE)
+quantile(mental_health_tech_survey$Timestamp, na.rm = TRUE)
+```
+
+Q: Based on this output, which of these functions work for date time variables? 
+A: All of these functions work for date time 
+
+Q: Is this variable positively skewed, or negatively skewed? 
+A: positively skewed
+
+## Logical Functions (3 points)
+We don't have any logical columns in this dataset, so we get to make one for this example by revaluing a factor variable with two categories. Simply run the code below. 
+```{r}
+mental_health_tech_survey <- mental_health_tech_survey %>% mutate(obs_consequence = ifelse(obs_consequence == "Yes", TRUE, FALSE))
+```
+
+For the obs_consequence column: 
+
+1. Print out the proportion of values that are true.
+2. Print out the number of values that are true. 
+
+```{r}
+mean(mental_health_tech_survey$obs_consequence, na.rm = TRUE)
+sum(mental_health_tech_survey$obs_consequence, na.rm = TRUE)
+
+```
+
+Q: What percentage of respondents put "Yes" (now TRUE) on this question? Round to one decimal place.
+A: 14.6%
+
+## Descriptive table (3 points)
+Use a code snippet or the in class file to pull in the descriptive table function. Then run this mental health survey through it. 
+
+```{r}
+descr_table <- function(df) {
+
+  df_num <- select_if(df, function(col) is.numeric(col) | is.logical(col)  | is.Date(col)) 
+  df_fac <- select(df, setdiff(colnames(df), colnames(df_num))) 
+  none <- rep("None", ncol(df_fac))
+  
+  matrix <- matrix(nrow = ncol(df), ncol=11, dimnames = list(c(names(df_num), names(df_fac)), c("Mean","Max","Min", "Std Dev", "Median", "Kurt", "Skew", "# Missing", "# Unique", "Class", "Mode")))
+  
+  matrix[,1] <- c(sapply(df_num, function(x) round(mean(x, na.rm = TRUE), 2)), none)
+  matrix[,2] <- c(sapply(df_num, function(x) max(x, na.rm = TRUE)), none)
+  matrix[,3] <- c(sapply(df_num, function(x) min(x, na.rm = TRUE)), none)
+  matrix[,4] <- c(sapply(df_num, function(x) round(sd(x, na.rm = TRUE), 2)), none)
+  matrix[,5] <- c(sapply(df_num, function(x) median(x, na.rm = TRUE)), none)
+  matrix[,6] <- c(sapply(df_num, function(x) round(moments::kurtosis(x, na.rm = TRUE), 2)), none)
+  matrix[,7] <- c(sapply(df_num, function(x) round(moments::skewness(x, na.rm = TRUE), 2)), none)
+  matrix[,8] <- sapply(cbind(df_num, df_fac), function(x) sum(is.na(x)))
+  matrix[,9] <- as.character(sapply(cbind(df_num, df_fac), function(x) length(unique(x))))
+  matrix[,10] <- as.character(sapply(cbind(df_num, df_fac), function(x) class(x)))
+  matrix[,11] <- sapply(cbind(df_num, df_fac), function(x) names(sort(table(x),decreasing=TRUE)[1]))
+  matrix <- as.data.frame(matrix)
+  return(matrix)
+}
+
+descr_table(mental_health_tech_survey)
+```
+
+Q: Based on the resulting table, what is the most common age of respondents in this dataset? 
+A: 29
+
+Q: Which variable has the most unique values? 
+A: Timestamp
+
+## Visualization (3 points)
+
+Copy and paste theme_new from the visualization html. Make a histogram of the timestamp variable.
+```{r}
+theme_new <-  theme_fivethirtyeight(base_size=12#,base_family="Open Sans"
+                                    ) %+replace% theme(panel.grid.major.y = element_line(colour = "grey80", size = 0.25),  panel.grid.major.x = element_blank(), panel.background = element_rect(fill = "white"), plot.background = element_rect(fill = "white"), legend.background = element_rect(fill = "white")) 
+
+#hist(mental_health_tech_survey$Timestamp, breaks = 10)
+mental_health_tech_survey %>% 
+        ggplot(aes(x = Timestamp)) + geom_histogram(fill = "#afd7db", bins=10) +
+        labs(title = "Timestamp Histogram", 
+            subtitle = "10 bins", 
+            y = "Count", 
+            x = "Variable") +
+        theme_new #+ theme(axis.title = element_text(size = 10, color = "grey40"))
+
+```
+
+Q: Did most people take the survey at a similar time to other people, or spread out? 
+A: Similar time
+
+Make a bar chart of the no_employees column
+```{r}
+mental_health_tech_survey %>% 
+        ggplot(aes(x = no_employees, fill = no_employees)) + 
+        geom_bar() +
+        labs(title = "Number of Employees", 
+            subtitle = "by group") +
+        theme_new
+```
+
+Q: Ideally, an ordinal variable than this should have all the factors in the correct order. Is this one in the right order? 
+A: No, it is not. 
+
+# Optional feedback: 
+
+How hard was this assignment? Was it: too hard, too easy, or just right? 
+
+ANSWER: Just right
+
+Approximately how long did this assignment take you? 
+
+ANSWER: 1.5 hours
+

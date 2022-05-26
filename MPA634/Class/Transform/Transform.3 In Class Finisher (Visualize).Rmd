@@ -1,0 +1,351 @@
+---
+title: "Transform.3 In Class Finisher (Visualize)"
+author: "Laurel Galli-Graves"
+date: "11/24/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, 
+                      message = FALSE)
+library(tidyverse)
+library(gapminder)
+library(ggthemes)
+library(cowplot)
+```
+
+Copy and paste theme_new from the visualization rmd. 
+```{r}
+theme_new <-  theme_fivethirtyeight(base_size=12, base_family="Open Sans") %+replace% theme(panel.grid.major.y = element_line(colour = "grey80", size = 0.25),  panel.grid.major.x = element_blank(), panel.background = element_rect(fill = "white"), plot.background = element_rect(fill = "white"), legend.background = element_rect(fill = "white"))
+```
+
+We are going to use the gapminder dataset for this visualization. Use str() and summary to explore the gapminder dataset.
+```{r}
+str(gapminder)
+summary(gapminder)
+```
+
+# Column charts versus bar charts Cat & Cat/Num
+Make a bar chart of the country variable.
+```{r}
+gapminder %>% 
+        ggplot(aes(x = country, fill = country)) + 
+        geom_bar() +
+        labs(title = "Title", 
+            subtitle = "Subtitle") +
+        theme_new
+```
+
+This looks like garbage because all we can see is the legend. Use the same code again but include 
++ theme(legend.position = "none") 
+after theme_new to suppress the legend. 
+```{r}
+gapminder %>% 
+        ggplot(aes(x = country, fill = country)) + 
+        geom_bar() +
+        labs(title = "Title", 
+            subtitle = "Subtitle") +
+        theme_new + 
+        theme(legend.position = "none") 
+```
+Not much better. All the names are crowded together. When I have a large number of factors I like to change the orientation. 
+```{r}
+gapminder %>% 
+        ggplot(aes(y = country, fill = country)) + 
+        geom_bar() +
+        labs(title = "Title", 
+            subtitle = "Subtitle") +
+        theme_new + 
+        theme(legend.position = "none") 
+```
+Better but not great. This is where dplyr comes in. Filter the results so that we just see countries from the Americas
+```{r}
+gapminder %>% 
+  filter(continent == "Americas") %>% 
+        ggplot(aes(y = country, fill = country)) + 
+        geom_bar() +
+        labs(title = "Title", 
+            subtitle = "Subtitle") +
+        theme_new + 
+        theme(legend.position = "none") 
+```
+Finally we see the results we are looking for, but since a bar chart just counts the number of times a category is listed in a dataset, and each country is listed here the same number of times (once per year) that doesn't tell us anything. 
+
+Q: What is the difference between a column chart and a bar chart? 
+A: A column chart accepts 2 variables, a numeric and categorical. They need a one to one ratio. A bar chart accepts one categorical variable, and fills bars by the number of times the categories are in the dataset. 
+
+Create a column chart with the life expectancy variable 
+
+```{r}
+gapminder %>% 
+  filter(continent == "Americas") %>% 
+        ggplot(aes(y = country, x = lifeExp, fill = country)) + 
+        geom_col() +
+        labs(title = "Title", 
+            subtitle = "Subtitle") +
+        theme_new + 
+        theme(legend.position = "none") 
+```
+
+Q: What does the chart say is the life expectancy for Venezuela? What happened? 
+A: About 775. It has added up all the numeric variable together. 
+
+In this case it doesn't make sense to add up all the life expectancies. We need to make a one to one ratio another way. Filter for one year. 
+```{r}
+gapminder %>% 
+  filter(continent == "Americas", 
+         year == 2007) %>% 
+        ggplot(aes(y = country, x = lifeExp, fill = country)) + 
+        geom_col() +
+        labs(title = "Title", 
+            subtitle = "Subtitle") +
+        theme_new + 
+        theme(legend.position = "none") 
+```
+
+That is much more informative, but it would be most helpful if we could see these in order from greatest to smallest. 
+```{r}
+gapminder %>% 
+  filter(continent == "Americas", 
+         year == 2007) %>% 
+        ggplot(aes(y = fct_reorder(country, lifeExp), x = lifeExp, fill = country)) + 
+        geom_col() +
+        labs(title = "Title", 
+            subtitle = "Subtitle") +
+        theme_new + 
+        theme(legend.position = "none") 
+```
+Once we relabel the graph and maybe adjust some design preferences, we can call this a finished graph. 
+
+Now make a one to one ratio by using a summary statistic. Find the median life expectancy and then graph that. 
+```{r}
+gapminder %>% 
+  filter(continent == "Americas") %>% 
+  group_by(country) %>% 
+  summarize(median_life = median(lifeExp)) %>% 
+        ggplot(aes(y = country, x = median_life, fill = country)) + 
+        geom_col() +
+        labs(title = "Title", 
+            subtitle = "Subtitle") +
+        theme_new + 
+        theme(legend.position = "none") 
+```
+
+Now reorder by the new column. 
+```{r}
+gapminder %>% 
+  filter(continent == "Americas") %>% 
+  group_by(country) %>% 
+  summarize(median_life = median(lifeExp)) %>% 
+        ggplot(aes(y = fct_reorder(country, median_life), x = median_life, fill = country)) + 
+        geom_col() +
+        labs(title = "Title", 
+            subtitle = "Subtitle") +
+        theme_new + 
+        theme(legend.position = "none")
+```
+
+Recap of the concepts we just covered: 
+- reorienting bar charts
+- bar charts v. column charts
+- one to one relationships 
+- reordering factors
+- removing legends
+
+# Scatterplots Num/Num
+Let's look at the relationship between life expectancy and per capita gdp. Make a scatterplot 
+```{r}
+gapminder %>% 
+        ggplot(aes(x = lifeExp, y = gdpPercap)) + 
+        geom_point(color = "#183054", alpha = .1) + 
+        stat_smooth(color = "#ffa781", alpha = .2, size = .7) +
+        labs(title = "Title", 
+            subtitle = "Subtitle", 
+            x = "x variable", 
+            y = "y variable") +
+        theme_new + 
+        theme(axis.title = element_text(size = 10, color = "grey40"))
+```
+There are a few outliers here. Also note we can change the opacity of the points by changing the "alpha" parameter in geom_point()
+
+Q: Is this a one to one, one to many, or many to many relationship? 
+A: Many to many
+
+Use this same code to make a scatterplot between year and per capita gdp. 
+```{r}
+gapminder %>% 
+        ggplot(aes(x = year, y = gdpPercap)) + 
+        geom_point(color = "#183054", alpha = .1) + 
+        stat_smooth(color = "#ffa781", alpha = .2, size = .7) +
+        labs(title = "Title", 
+            subtitle = "Subtitle", 
+            x = "x variable", 
+            y = "y variable") +
+        theme_new + 
+        theme(axis.title = element_text(size = 10, color = "grey40"))
+```
+
+This graph would be a lot clearer if we added a jitter. Copy the code again and add position = "jitter" as an argument in the geom_point code. Also filter for gdp over 60,000
+```{r}
+gapminder %>% 
+  filter(gdpPercap <= 60000) %>% 
+        ggplot(aes(x = year, y = gdpPercap)) + 
+        geom_point(color = "#183054", alpha = .1, position = "jitter") + 
+        stat_smooth(color = "#ffa781", alpha = .2, size = .7) +
+        labs(title = "Title", 
+            subtitle = "Subtitle", 
+            x = "x variable", 
+            y = "y variable") +
+        theme_new + 
+        theme(axis.title = element_text(size = 10, color = "grey40"))
+```
+
+# Boxplots and Density plots Cat/Num
+So far we have looked at one to one and many to many relationships. Let's look at some graphs that show one to many relationships. 
+
+Make a boxplot of the population divided by continent. Filter for populations under 2 million. Filter out Oceania. Reorder by the median population. 
+```{r}
+gapminder %>% 
+  filter(pop <= 2000000, 
+         continent != "Oceania") %>% 
+        ggplot(aes(x = fct_reorder(continent, pop, median, na.rm = TRUE), y = pop, fill = continent)) + 
+        geom_boxplot(outlier.alpha = .1) +
+        labs(title = "Title", 
+            subtitle = "Subtitle", 
+            x = "") +
+        theme_new + 
+        theme(axis.title = element_text(size = 10, color = "grey40"),
+              axis.title.x = element_text(hjust = .02, vjust = .4),
+              legend.position = "none")
+```
+
+# Facetting
+You can also show one to many relationships by faceting. Create a facetted density plot with the same data. 
+
+```{r}
+gapminder %>% 
+  filter(pop <= 2000000, 
+         continent != "Oceania") %>% 
+        ggplot(aes(x = pop, fill = continent, color = continent)) + 
+        geom_density(alpha = .3) +
+        labs(title = "Title", 
+            subtitle = "Subtitle", 
+            x = "X Variable") + 
+        facet_wrap(~continent) + 
+        theme_new + 
+        theme(legend.position = "right", 
+              legend.direction = "vertical", 
+              axis.title = element_text(size = 10, color = "grey40"), 
+              axis.text.y = element_blank())
+```
+
+Let's use the code we learned earlier to remove the legend. 
+```{r}
+gapminder %>% 
+  filter(pop <= 2000000, 
+         continent != "Oceania") %>% 
+        ggplot(aes(x = pop, fill = continent, color = continent)) + 
+        geom_density(alpha = .3) +
+        labs(title = "Title", 
+            subtitle = "Subtitle", 
+            x = "X Variable") + 
+        facet_wrap(~continent) + 
+        theme_new + 
+        theme(legend.position = "none", 
+              axis.title = element_text(size = 10, color = "grey40"), 
+              axis.text.y = element_blank())
+```
+
+# Titling 
+I recommend always having the title be a general description of what the graph says, and having the subtitle highlight some sort of observation to point the viewer in the right direction. I also recommend including a source caption. Use the code of the graph above but this time label everything. 
+```{r}
+gapminder %>% 
+  filter(pop <= 2000000, 
+         continent != "Oceania") %>% 
+        ggplot(aes(x = pop, fill = continent, color = continent)) + 
+        geom_density(alpha = .3) +
+        labs(title = "Density plot of the populations by continent, 1952-2007", 
+            subtitle = "Europe has the clearest bimodal distribution", 
+            x = "Population", 
+            caption = "Source: Gapminder Dataset") + 
+        facet_wrap(~continent) + 
+        theme_new + 
+        theme(legend.position = "none", 
+              axis.title = element_text(size = 10, color = "grey40"), 
+              axis.text.y = element_blank())
+```
+
+# Themes 
+Never use the default theme in ggplot. Just don't. At least explore the other default theme options. Save the graph code above as an object (without a theme) and try 3 different themes. 
+```{r}
+base <- gapminder %>% 
+  filter(pop <= 2000000, 
+         continent != "Oceania") %>% 
+        ggplot(aes(x = pop, fill = continent, color = continent)) + 
+        geom_density(alpha = .3) +
+        labs(title = "Density plot of the populations by continent, 1952-2007", 
+            subtitle = "Europe has the clearest bimodal distribution", 
+            x = "Population", 
+            caption = "Source: Gapminder Dataset") + 
+        facet_wrap(~continent) + 
+       # theme_new + 
+        theme(legend.position = "none", 
+              axis.title = element_text(size = 10, color = "grey40"), 
+              axis.text.y = element_blank())
+
+base + theme_classic()
+base + theme_gdocs()
+base + theme_cowplot()
+base + theme_minimal()
+```
+
+# Custom Themes
+The theme we used at the beginning is a custom theme I have created (and use for almost everything!). The format is theme_*() %+replace% theme(parameters).
+
+We won't learn in this class how to make a custom theme, but if you are interested you can start by looking at the code below or ask me for some assistance outside of class. To add this theme to things I now just have to type + theme_new
+```{r}
+theme_new <-  theme_fivethirtyeight(base_size=12, base_family="Open Sans") %+replace% theme(panel.grid.major.y = element_line(colour = "grey80", size = 0.25),  panel.grid.major.x = element_blank(), panel.background = element_rect(fill = "white"), plot.background = element_rect(fill = "white"), legend.background = element_rect(fill = "white"))
+```
+
+# On your own 
+Create 3 finished visualizations with the gapminder data. Make sure to include finished labels and a theme. Use code from the visualization RMD to help you. You may have to do some filtering. 
+```{r}
+gapminder %>%  
+        ggplot(aes(x = lifeExp, color = continent)) + 
+        geom_freqpoly(size = 1, alpha = .6) +
+        labs(title = "Life expectancy distribution for continents", 
+            subtitle = "Overall, European countries have had the highest life expectancy between 1952-2007", 
+            caption = "Source: Gapminder Dataset") + 
+        theme_new
+
+
+gapminder %>% 
+        filter(continent == "Americas") %>% 
+        pivot_wider(names_from = year, values_from = c(lifeExp, pop, gdpPercap)) %>% 
+        ggplot() +
+        geom_segment(aes(x=fct_reorder(country, gdpPercap_2007), xend=country, y=gdpPercap_1952, yend=gdpPercap_2007),color="grey") +
+        geom_point(aes(x = country, y = gdpPercap_1952), size = 3, color = "#afd7db") +
+        geom_point(aes(x = country, y = gdpPercap_2007), size = 3, color = "#f0b684") +
+        labs(title = "Life expectancy change 1952-2007 for countries in the Americas", 
+          subtitle = "The US has seen one of the largest increases in life expectancy", 
+          x = "x variable", 
+          y = "y variable", 
+          caption = "Source: Gapminder Dataset") +
+        coord_flip() + 
+        theme_new + theme(panel.grid.major.y = element_blank())
+
+gapminder %>% 
+      filter(country == "Bangladesh") %>% 
+# This is part of the graph in every case. 
+      ggplot(aes(x = year, y = gdpPercap)) + 
+      geom_col(fill = "#afd7db") +
+      labs(title = "Per Capita GDP in Bangladesh 1952-2007", 
+          subtitle = "There was a significant increase between 2002 and 2007",
+          y = " Per Cap GDP in Dollars",
+          x = "", 
+          caption = "Source: Gapminder Dataset") +
+      theme_new + theme(axis.title = element_text(size = 10, color = "grey40")) +
+      scale_x_continuous(breaks=seq(1952, 2007, 5))
+```
+
+

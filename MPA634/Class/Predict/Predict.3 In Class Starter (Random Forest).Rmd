@@ -1,0 +1,278 @@
+---
+title: "Predict.3 In Class Finisher (Random Forest)"
+author: "Your Name"
+date: "3/11/2022"
+output: html_document
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(randomForest)
+library(caret)
+library(cvms)
+```
+
+# Import Data
+Import the car details dataset. Make sure string variables are factor. 
+```{r}
+CAR_DETAILS_FROM_CAR_DEKHO <- read_csv("../../Data/CAR DETAILS FROM CAR DEKHO.csv") %>% mutate_if(is.character, as.factor)
+
+```
+
+# Data Cleaning
+We need to start off with a little data cleaning, but thankfully not as much as regression requires!
+
+Per usual, make a copy of the dataset.
+```{r}
+car_details <- CAR_DETAILS_FROM_CAR_DEKHO
+```
+
+## Addressing factors
+Let's first take a look at our owner variable with fct_count.
+```{r}
+fct_count(car_details$owner)
+
+
+```
+
+This is our variable we are going to predict. This is called the label variable. Our x variables are called features. Let's say we only care whether this is the first, second or third owner. Everything else we can lump together. 
+```{r}
+# Lump everything but the first, second, and third owners. 
+car_details <- car_details %>% 
+  mutate(owner = fct_lump(owner, n = 3))
+
+# Check your work with fct_count again. 
+fct_count(car_details$owner)
+
+```
+
+## Removing character columns
+Let's drop the name column since many of the values are unique. 
+```{r}
+car_details <- car_details %>% select(-name)
+
+
+```
+
+## Impute NAs
+If we had missing data at this point, we would use random forest itself to impute values. Missing values are actually fine as long as we don't have missing data in our label (y). The iter parameter shows us how many times it will go through the process trying to get the most accurate results. Usually 4-6 is good enough. (We can try changing this to a higher number to see if it gets better but it will take longer.) If our OOB stops getting smaller as we go down, the iterations are probably enough. Or we can make the iterations higher and see if that number will go down. 
+```{r}
+#df_no_nas <- rfImpute(y ~ ., data = df, iter=6)
+
+```
+
+Here is an example from another dataset. 
+```{r}
+# Just cleaning the data for this example.
+starwars2 <- starwars %>% mutate_if(is.character, as.factor) %>% select(height:species) %>% filter(!is.na(gender)) 
+
+# Impute values
+starwars_no_na <- rfImpute(gender ~ ., data = starwars2, iter=6)
+```
+
+Each OOB shows us the decrease in error that each additional iteration provides (in this case there is no decrease).
+
+Notice we don't have to turn our data into all numeric information. That is another benefit of random forest! 
+
+# Random Forest Classifier
+
+## Set Seed
+The first thing we can do is set the seed. We do this so the random forests can be... well... random, but reproducible. We can pick any number for the seed, and anyone else who picks that same number will get the same results as us. 
+```{r}
+set.seed(21)
+
+```
+
+## Training and Testing 
+We said we usually split the data into train and test datasets at this point. Remember random forest uses bootstrapping (pulling multiple random samples out of our dataset) instead of using a train and test dataset and we technically don't have to create a train and test dataset. However, it's always good to test our results on new data, and it will help us feel confident in our model.
+```{r}
+# Create a random sampling of 70% of the data. If we had imputed data, that would be the dataset we would use here. 
+sample <- sort(sample(nrow(car_details), nrow(car_details)*.7))
+
+# Create the train and test data from this sample. 
+train <- car_details[sample,]
+test <- car_details[-sample,]
+```
+
+## Run the model
+Now we want to actually create a model with the train data. The code may remind you of creating a MLR model. 
+```{r}
+model <- randomForest(owner ~ ., data = train, ntrees = 500, proximity = TRUE)
+```
+
+Take a look at the model we have created. This will show us a lot of information.
+```{r}
+model
+```
+
+Q: How many trees were generated in this model?  
+A: 
+
+Q: How accurate was this model?  
+A: 
+
+Q: How many second owners were correctly identified as second owners?  
+A: 
+
+## Determining the number of trees
+Look at a plot of the model below. This shows us how the error changes over time. 
+```{r}
+plot(model)
+```
+Even though it appears that the error goes up and down as the number of trees increases, the error actually always goes down as the number of trees goes up. Any fluctuations we see are due to random noise. Figuring out the right number of trees isn't too hard, unless it looks like we could really benefit from adding more trees, we can stick with the default, which is 500 (unless it takes too long to run the random forest).
+
+
+## Determining the number of variables considered at a time
+The tuneRF function below helps us figure out the best number of variables to consider at a time. (Note: y must be a vector.)
+```{r}
+t <- tuneRF(x = train %>% select(-owner), y = train$owner, stepFactor=1.5, improve=1e-5, ntree=500)
+
+print(t)
+```
+
+Based on which of these is the lowest, adjust the mtry parameter in the model.
+```{r}
+(model <- randomForest(owner ~ ., data=train, ntree = 500, proximity=TRUE, mtry=2))
+```
+
+Looks like that didn't improve our model dramatically, but it did lower the error. 
+
+## Predicting 
+We can predict the values in our test dataset in much the same way we did for regression.
+```{r}
+predicted <- predict(model, test)
+```
+
+## Confusion Matrixes
+There are a couple ways of generating confusion matrixes on our test data, depending on what package you choose. 
+
+Here is in the caret package. It is easier to read and offers a lot of information. 
+```{r}
+(cm1 <-confusionMatrix(predicted, test$owner))
+```
+
+Q: What was the accuracy for predicted values?  
+A: 
+
+Q: Why might you care about the percent of positively and negatively predicted values?  
+A: 
+
+Here is from the cvms package. We can use this to output a nice graphic. 
+```{r}
+(cm2 <- confusion_matrix(test$owner, predicted))
+```
+
+Let's plot the second confusion matrix. 
+```{r}
+plot_confusion_matrix(cm2$`Confusion Matrix`[[1]])
+```
+
+Descriptions of how to read this matrix can be found at the site below.  https://cran.r-project.org/web/packages/cvms/vignettes/Creating_a_confusion_matrix.html
+
+In the middle of each tile, we have the normalized count (overall percentage of the data) and, beneath it, the count.
+
+At the bottom of each tile, we have the column percentage. Of all the observations where Target (actual value) is Third Owner, 31.4% of them were predicted to be the First owner, 1.2% of them were predicted to be "other", 54.7% of them were predicted to be second owner, and 12.8% of them were correctly predicted as Third owner.
+
+At the right side of each tile, we have the row percentage. Of all the observations where the prediction was Third owner, 21.6% of them really were the third owner, 5.1% were the second owner, 17.9% of them were really "other" and 2% of them were really the first owner. 
+
+The tiles are colored by the count. (Essentially this is a fancy heat map.)
+
+We can also add the sums of all rows and columns with the add_sums parameter. 
+```{r}
+plot_confusion_matrix(cm2$`Confusion Matrix`[[1]], add_sums = TRUE)
+```
+
+If you are interested in more settings for this confusion matrix, there are a lot. You can check them out at the url listed above.
+
+## Other Visualizations
+Here are a couple of final visualizations for you to check out.
+
+### Node Numbers
+Here is a histogram of the number of nodes that are in each of the 500 trees of our model.
+```{r}
+treesize(model) %>% 
+  as.data.frame() %>% 
+  ggplot(aes(x = .)) + 
+  geom_histogram(fill = "#99c7a5") + 
+  labs(title = "Number of Nodes per Tree") +
+  theme_minimal()
+```
+
+### Variable (Feature) Importance
+Here is a column chart showing which variables play the most important roles in the predictions of the y (label) variable.
+```{r}
+importance(model) %>% 
+  as.data.frame() %>% 
+  tibble::rownames_to_column() %>% 
+  ggplot(aes(y = fct_reorder(rowname, MeanDecreaseGini), x = MeanDecreaseGini, fill = rowname)) + 
+  geom_col() + 
+  labs(title = "Importance of Variables in Model", 
+       x = "Importance", 
+       y = "Variables") + 
+  theme_minimal() + 
+  theme(legend.position = "none")
+```
+
+### MDS plot
+This is a really complicated graph that takes a while to generate. If you are interested in knowing more about the statistics behind how to generate it and more of how to interpret it you can watch the following videos. 
+
+https://www.youtube.com/watch?v=HMOI_lkzW08&ab_channel=StatQuestwithJoshStarmer
+https://www.youtube.com/watch?v=GEn-_dAyYME&ab_channel=StatQuestwithJoshStarmer
+
+For this class all you need to know is that it shows clusters of data based on the label (y variable). It is more helpful when there is a more even distribution of the label.
+```{r}
+mds_data <- as.dist(1-model$proximity) %>% cmdscale(eig=TRUE, x.ret=TRUE)
+
+mds_data$points %>% 
+  as.data.frame() %>% 
+ggplot(aes(x = V1, y = V2)) + 
+  geom_point(aes(color = train$owner), alpha = .5) +
+  theme_minimal() +
+  ggtitle("MDS plot using (1 - Random Forest Proximities)")
+```
+
+### Parallel Coordinate Plot
+This is a much more user-friendly version that shows patterns in the data.  
+```{r}
+train %>% 
+    GGally::ggparcoord(
+      columns = c(1:6), 
+      groupColumn = 7, 
+      showPoints = TRUE, 
+      title = "Title",
+      alphaLines = 0.2
+      ) + 
+    viridis::scale_color_viridis(discrete=TRUE) +
+    theme_minimal() +
+    theme(legend.key  = element_rect(fill = "#ffffff")) 
+```
+
+Q: What are the strongest relationships present in the graph?  
+A: 
+
+Here is another example of a parallel coordinate plot using transmission as the label. 
+```{r}
+train %>% 
+    GGally::ggparcoord(
+      columns = c(1:5,7), 
+      groupColumn = 6, 
+      showPoints = TRUE, 
+      title = "Title",
+      alphaLines = 0.1
+      ) + 
+    viridis::scale_color_viridis(discrete=TRUE) +
+    theme_minimal() +
+    theme(legend.key  = element_rect(fill = "#ffffff")) 
+```
+
+Q: What is the strongest relationship present here?  
+A: 
+
+# Random Forest Regressor 
+While random forest is most commonly used for categorical labels, you can also use a similar algorithm called random forest regressor for numeric labels. Luckily, we can use the exact same code with a numeric label and it will automatically use random forest regressor instead of classifier. 
+```{r}
+(model <- randomForest(selling_price ~ ., data = train, ntrees = 500, proximity = TRUE))
+```
+

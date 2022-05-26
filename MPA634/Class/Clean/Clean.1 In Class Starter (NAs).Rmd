@@ -1,0 +1,209 @@
+---
+title: "Clean.1 In Class Starter (NAs)"
+author: "Your Name"
+date: "1/28/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(VIM)
+```
+
+# Import Data 
+Import the np_survey.csv
+```{r}
+np_survey <- read_csv("../Data/np_survey.csv", na = c(NA, "", " ", "?") %>% mutate_if(is.character, as.factor)
+```
+
+In this dataset there are a few things that we could consider NAs. You may have noticed one column has ? instead of NAs all the way down. Another column has an empty space as NAs. We can get this to read in as an NA by adding na = c() into our read_csv. Fix the read_csv and rerun the import. 
+
+Run a summary of this dataset in the console. Because there are so many columns, it's difficult to get any information here. Look at the structure in the global environment. 
+
+# Removing NAs  
+## NAs refresher 
+We have discussed two ways to remove NAs from a dataset. What happens if we do na.omit on this dataset? 
+```{r}
+np_survey %>% na.omit()
+
+```
+
+Q: How many rows are left after that?  
+A: 
+
+The other way we have learned to remove NAs is the filter(!is.na()). Run this on the disability_type column. 
+```{r}
+np_survey %>% filter(!is.na(disability_type))
+```
+
+Q: Now how many rows are left?  
+A: 
+
+## Making a copy of the data
+```{r}
+# Up to this point we haven't actually adjusted our dataset. We are going to start making some destructive edits now, so make a copy of the dataset that we will use to clean the data. Let's call it np_survey_reduced because we will be removing data. 
+np_survey_reduced <- np_survey
+
+```
+
+
+## Removing empty rows 
+One of the reasons this dataset is so messy is that we have a bunch of added rows at the end that don't look they have anything in them. Adjust the following code to get rid of all empty rows. Save the result as a new dataset.
+```{r}
+#dataset1 <- dataset[rowSums(is.na(dataset)) != ncol(dataset),]
+(np_survey_reduced <- np_survey_reduced[rowSums(is.na(np_survey_reduced)) != ncol(np_survey_reduced),])
+```
+
+Q: How many rows do we have compared to before?  
+A: 
+
+## Removing junk rows by hand
+Sometimes you will notice observations that seem like outliers. Look at the last row of the data. How would we remove this row? 
+```{r}
+np_survey_reduced <- np_survey_reduced[-82,]
+
+```
+
+
+## Removing empty columns
+It looks like some of the columns don't have any data at all. 
+```{r}
+# We can make a logical vector of columns and whether they are blank with the following code: 
+empty_columns <- colSums(is.na(np_survey_reduced)) == nrow(np_survey_reduced)
+
+# Remember we can sum a logical vector to count the number of TRUEs. Use the following code to see how many blank columns we have. 
+sum(empty_columns)
+```
+
+Q: How many empty columns do we have?   
+A: 
+
+Remove those empty columns with the code below. 
+```{r}
+np_survey_reduced <- np_survey_reduced[, !empty_columns]
+```
+
+Q: How many columns are left?  
+A: 
+
+## Branched Data
+Now we need to identify any branches in our data, and create a new subset with them. We also want to include some sort of identification column as well in case we need to reconnect these data later.  
+```{r}
+# Columns Q202 through Q219_4 have branched data. Why did this happen? Make a subset with these columns and the response id column. Filter to remove all nas in the Q202 column. 
+np_branch <- np_survey_reduced %>% select(ResponseId, Q202:Q219_4) %>% filter(!is.na(Q202))
+
+# Then save our np_survey_reduced dataset without the subset. 
+np_survey_reduced <- np_survey_reduced %>% select(!Q202:Q219_4) 
+
+```
+
+## Removing columns with cut off 
+Before we removed columns with ONLY missing data, but there are still a lot of columns with very few pieces of information. We can also remove columns based on a cut off. For example, we could remove columns where more than one half of the data are missing. Play with the code below until you are satisfied with the number of columns you have left, then overwrite the np_survey_reduced dataset. Note: The more columns we remove, the more rows we can keep. This is a trade off we have to decide on. 
+```{r}
+np_survey_reduced <- np_survey_reduced %>% 
+  select_if(!colSums(is.na(np_survey_reduced)) > nrow(np_survey_reduced)/9)
+  
+```
+
+## Remove columns that are all the same value 
+We also have a bunch of columns full of data--but is useless to us because it is all the same value. Adjust the code below to remove those columns. 
+```{r}
+np_survey_reduced <- np_survey_reduced %>% 
+                          select(where(~n_distinct(.) > 1))
+```
+
+We have used all of our best tricks to remove data that isn't useful anymore without really looking into the data itself. How much data would be left if we did na.omit now? (Don't override the dataset).
+```{r}
+np_survey_reduced %>% na.omit()
+```
+
+This still gets rid of a lot of data. Let's look at ways to maintain data. 
+
+# Filling in NAs
+
+When is it appropriate to fill in NAs?   
+
+Here are a couple rules of thumb: 
+
+1. Don't fill data that is essential to your analysis. 
+2. Don't fill in sensitive data. 
+3. Always be clear about how you have adjusted your data. 
+4. Filling in NAs may be more appropriate in a data science setting than a statistical analysis setting. 
+
+## Replace with mode
+(Thanks codingprof.com)
+```{r}
+#Since there isn't a good function for mode, we have to create one. 
+calc_mode <- function(x){
+  # List the distinct / unique values
+  distinct_values <- unique(x)
+  # Count the occurrence of each distinct value
+  distinct_tabulate <- tabulate(match(x, distinct_values))
+  # Return the value with the highest occurrence
+  distinct_values[which.max(distinct_tabulate)]
+}
+
+np_survey_reduced %>% 
+  mutate(across(everything(), ~replace_na(.x, calc_mode(.x)))) %>% summary()
+```
+
+## Replace numerical with mean or median 
+```{r}
+# Replace numeric NAs with mean 
+np_survey_reduced %>% 
+  mutate(across(where(is.numeric), ~replace_na(.x, mean(.x, na.rm = TRUE)))) %>% summary()
+
+# Replace numeric NAs with median 
+np_survey_reduced %>% 
+  mutate(across(where(is.numeric), ~replace_na(.x, median(.x, na.rm = TRUE)))) %>% summary()
+```
+
+## Replace NAs with KNN value
+There is one more method we can use to import missing values. The VIM packages has a function called kNN that can be used to impute missing values. This is an algorithm that tries to figure out the best value based on other data points that are around the missing point. 
+```{r}
+np_survey_reduced %>% kNN(imp_var = FALSE) %>% summary()
+
+# We can also change the number of neighbors that are considered by changing k
+#np_survey_reduced %>% kNN(imp_var = FALSE, k = 10) %>% summary()
+```
+
+## How do we know which one is the best? 
+The only way to know for sure which one is best is to artificially remove some missing data points, and see which method is most accurate at predicting values. You also have to take into consideration time. kNN can become slower with a massive dataset. 
+
+You can also choose different methods for your numeric and categorical data. 
+
+Let's replace factor data with the mode, and numeric data with the kNN mean. 
+```{r}
+np_survey_reduced <- 
+np_survey_reduced %>% 
+  mutate(across(where(is.factor), ~replace_na(.x, calc_mode(.x)))) %>% 
+  kNN(imp_var = FALSE)
+
+# Adjust the following code to check to make sure all NAs are gone. 
+colSums(is.na(np_survey_reduced))
+```
+
+
+## Replacing NAs with specific value
+Occasionally, you may know that an NA is actually NOT missing data, and really stands for something specific. Here is some code that you could use to replace NAs with another specific value of your choosing. 
+```{r}
+# Here is code for replacing the NAs in the entire datast
+# df[is.na(df)] <- FALSE
+
+# Here is code for choosing different NA replacements for different columns. 
+# df %>% replace_na(list(col1 = 0, col2 = "unknown"))
+```
+
+# Saving a dataset
+When we have finished cleaning a dataset, we can export it out of R with the following code. Make sure never to overwrite your original dataset or you could inadvertently lose that data.
+```{r}
+# Change the following code to export the np_survey_reduced dataset
+# write.csv(np_survey_reduced, "../Data/np_survey_reduced.csv", row.names = FALSE)
+
+# Also export the np_branch dataset. 
+# write.csv(df, "df.csv", row.names = FALSE)
+
+# After running this code, comment it out so that it doesn't run again. 
+```
+

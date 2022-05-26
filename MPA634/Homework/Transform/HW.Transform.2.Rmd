@@ -1,0 +1,88 @@
+---
+title: "HW.Transform.2"
+author: "Your Name"
+date: "1/12/2022"
+output: html_document
+---
+25 points (20 for this assignment, 5 for being on time)
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE)
+library(tidyverse)
+library(ggthemes)
+
+theme_new <-  theme_fivethirtyeight(base_size=12) %+replace% theme(panel.grid.major.y = element_line(colour = "grey80", size = 0.25),  panel.grid.major.x = element_blank(), panel.background = element_rect(fill = "white"), plot.background = element_rect(fill = "white"), legend.background = element_rect(fill = "white"))
+```
+
+# Step 1: Import Data 
+```{r}
+# Import the hazmat77_14 dataset with readr. 
+hazmat77_14 <- read_csv("../Data/hazmat77_14.csv") %>% mutate_if(is.character, as.factor)
+
+```
+
+# Step 2: Practice 1 (5 points)
+1. Include only data for incidents that happened in Salt Lake, but make sure you get all the names and typos for Salt Lake that are included in this dataset. 
+
+Hint: To find out all the ways that salt lake is written in this dataset, you may want to revisit our section on factors from the descriptive statistics class.
+
+2. Make a dataset that shows the total number of damages for each year in salt lake. 
+
+3. Arrange this content by the highest damages and print out just the highest 10 columns. 
+
+```{r}
+hazmat77_14 %>% filter(str_to_lower(Incident.City) %in% c("salt lake city", "salt lake", "slc", "salt lake cy", "salt lake cty", "salk lake city", "n salt lake", "north salt lake", "nsl", "n salt lk cy", "st lake city", "salt clake city", "north salt  lake", "n. salt lake", "north salt ake", "sa lk lake city", "salk lake cy", "s salt lk cy", "salt lake city utah", "salt city cit", "norht salt lake", "north salt lake city", "south salt lake", "w salt lk cy", "n salt lke cy", "salt lalk cty", "sale lake city", "n salt lake city", "salt  lake")) %>% group_by(year) %>% summarise(total_damages = sum(Total.Amount.of.Damages, na.rm = TRUE)) %>% arrange(desc(total_damages)) %>% head(10)
+
+```
+
+# Step 3: Practice 2 (5 points)
+
+1. Grab all data for cargo coming from California or New York on the highway during or after the year 2000. 
+2. With this data, find the average month that incidents happened for each hazardous class. 
+3. Sort the resulting table by the earliest averages to the latest. 
+```{r}
+hazmat77_14 %>% filter(Origin.State %in% c("CALIFORNIA", "NEW YORK"), Mode.of.Transportation %in% c("Highway"), year >= 2000) %>% group_by(Hazardous.Class) %>% summarise(average = mean(month)) %>% arrange(average)
+
+```
+
+Q: Which hazardous material came earlier in the year on average?
+A: RADIOACTIVE MATERIAL	
+
+# Step 4: Practice 3 (10 points)
+
+1. Make a new column that adds the number of hospital and non hospital injries together. 
+2. Just grab rows where this new column is greater than zero
+3. Count how many times each hazardous class is present in the dataset. (Note: this is not the same as totalling the number of injuries per each hazardous class. We are just counting how many times each hazzardous class is listed.)
+4. Arrange by most common classes
+5. Only grab the 5 most common
+6. Save this new dataset by a new name. 
+```{r}
+hazardous_class_counts <- hazmat77_14 %>% mutate(Total.Injuries = Total.Hazmat.Hosp.Injuries + Total.Hazmat.NonHosp.Injuries) %>% filter(Total.Injuries > 0) %>% group_by(Hazardous.Class) %>% summarise(count = n()) %>% arrange(desc(count)) %>% head(5)
+
+```
+
+Use this new dataset to make a column chart that shows this data. (Hint: if you are using the visualization rmd you only need to grab the code after # This is part of the graph in every case and make sure you have theme_new loaded above your graph).
+
+Note: there are things you can do to make this graph more attractive, like remove the legend, reorder by frequency, and make the bars horizontal intead of vertical, but if you don't know how to do these things, don't worry about it. 
+```{r}
+hazardous_class_counts %>% ggplot(aes(x = count, y = Hazardous.Class, fill = count)) + 
+      geom_col() +
+      labs(title = "Top 5 Hazardous Class Counts", 
+          y = "Hazardous Classes",
+          x = "Count") +
+      theme_new + theme(axis.title = element_text(size = 10, color = "grey40"))
+
+```
+
+
+# Optional feedback: 
+
+How hard was this assignment? Was it: too hard, too easy, or just right? 
+
+ANSWER: Just right
+
+Approximately how long did this assignment take you? 
+
+ANSWER: 3 hours
+
+

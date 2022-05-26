@@ -1,0 +1,397 @@
+---
+title: "Transform.1 In Class Starter (Dplyr 1)"
+author: "Logan Hardy"
+date: "01/18/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+```
+
+# Inequalities 
+Inequalities are used to compare different values. They are very common in R. Here is the main syntax that will be useful for us. 
+
+">" greater than
+">=" greater than or equal to 
+"<" less than
+"<=" less than or equal to
+"==" equal to 
+"!=" not equal to 
+"&" and 
+"|" or
+
+Let's try these on the following values. Perform the following tasks. 
+```{r}
+value1 <- 150
+value2 <- 50
+value3 <- 6
+string1 <- "carrot"
+string2 <- "CARROT"
+
+# Check to see if value1 is greater than or equal value2.
+value1 >= value2
+
+# Check to see if value1 and value1 are equal to eachother. 
+value1 == value1
+
+# Check to see if value1 OR value3 is greater than value2.
+value1 | value3 > value2
+
+# Check to see if value1 AND value 3 are greater than value2.
+value1 & value3 > value2
+
+# Check to see if value2 is both less than value1 and greater than value3
+value2 < value1 & value2 > value3
+
+# Check to see if string1 and string2 are equal. 
+string1 == string2
+
+# Check to see if string1 and string2 are NOT equal 
+string1 != string2
+
+
+# Check to see if string1 and string2 are equal if string2 is nested in str_to_lower()
+string1 == str_to_lower(string2)
+
+
+```
+
+# Mathematical Operations 
+We have already seen some mathematical operations but let's go over them more thoroughly. Here are the main signs. 
+
+"+" add
+"-" subtract 
+"*" multiply
+"/" divide
+"^" exponent
+"%%" divide and return remainder
+"%/%" divide and return integer
+"()" works the same as in algebra (makes operations go first)
+
+Complete the following tasks. 
+```{r}
+# Add value1, value2, and value3. Assign it to an object value4. You could also use sum() in this case, but don't for now. Print it out at the same time. 
+(value4 <- value1 + value2 + value3)
+
+# Subtract value3 *from* value4 and divide that by value2. 
+(value4 - value3) / value2
+
+# Multiply value1 and value3
+value1 * value3
+
+# Divide value4 by value3 and get the answer in an integer. 
+value4 %/% value3
+
+# Divide value4 by value3 and just return the remainder. 
+value4 %% value3
+
+# Raise value2 to the power of value3
+value2 ^ value3
+
+# Add string1 to string2
+#string1 + string2
+paste(string1, string2)
+
+# Now put them together. See if value3 times value2 is greater than or equal to value4
+value3 * value2 >= value4
+
+```
+
+Q: What is the difference between how the () are used in the first task vs. the second? 
+A: In the first task, the () are around the whole expression, which makes it print out. In the second, the parentheses are causing the first operation to go first.
+
+Q: What happens when you try to add two strings together? 
+A: It throws the following error: non-numeric argument to binary operator
+
+## With vectors 
+So far we have done these with single values only. Try this with vectors vectors. 
+```{r}
+vector1 <- c(1, 14, 80)
+vector2 <- c(3, 11, 90)
+vector3 <- c(1:5)
+
+# Subtract vector1 from vector2
+vector2 - vector1
+
+# Check to see if vector1 is greater than or equal to vector2
+vector1 >= vector2
+
+# Subtract vector2 from vector3
+vector3 - vector2 
+
+# Check to see if vector3 is less than vector1
+vector3 < vector1
+
+```
+
+Q: What happens when you try mathematical or inequalities on vectors of differing lengths? 
+A: It will compare or evaluate them until one vector runs out, then it throws errors: longer object length is not a multiple of shorter object length
+
+# Now with datasets
+Import the refugees2011_2015 csv
+```{r}
+refugees2011_15 <- read_csv("../Data/refugees2011-15.csv") %>% mutate_if(is.character, as.factor)
+```
+
+# Selecting 
+Selecting is used to determine which columns to grab in a subset. 
+```{r}
+# Grab the Year, Country, and AsylumSeekers columns. 
+refugees2011_15 %>% select(Year, Country, AsylumSeekers)
+
+# Grab the same columns, but this time reverse the order and rename the asylum column to "Asylees"
+refugees2011_15 %>% 
+  select(Asylees = AsylumSeekers, Year, Country)
+
+
+# Grab every column except the Country Column. 
+refugees2011_15 %>% select(!Country)
+
+# Put the TotalPop column first and have everything the same after. 
+refugees2011_15 %>% select(TotalPop, everything())
+
+
+
+# Grab all the columns that start with "C"
+refugees2011_15 %>% select(starts_with("c"))
+
+
+# Grab all the numeric columns
+refugees2011_15 %>% select(is.numeric)
+
+
+
+# Grab all the columns that are NOT numeric. 
+refugees2011_15 %>% select(!is.numeric)
+
+
+```
+
+# Filtering 
+While select is used for column subsets, filter is used for rows. 
+
+```{r}
+# Grab only data for 2013
+refugees2011_15 %>% filter(Year == 2013)
+
+
+# Grab only data where the origin country was Iran. 
+refugees2011_15 %>% filter(Origin == 'Iran')
+
+# Grab only data where there were equal to or more than 200 refugees. 
+refugees2011_15 %>% filter(Refugees >= 200)
+
+
+# Grab the following asylum countries: Argentina, Canada, and Botswana
+refugees2011_15 %>% filter(Country %in% c("Argentina", "Canada", "Botswana"))
+
+
+# Grab only rows with between 100 and 300 asylum seekers
+refugees2011_15 %>% filter(AsylumSeekers %in% c(100:300))
+
+refugees2011_15 %>% 
+  filter(AsylumSeekers >= 100 & AsylumSeekers <= 300)
+
+
+# Grab only data where there were more refugees than asylum seekers. 
+refugees2011_15 %>% filter(Refugees > AsylumSeekers)
+
+```
+
+Q: Are there the same number of rows if you substitute %in% for == when grabbing multiple countries? 
+A: No there are a different number of countries. We will *always* use %in% for this class.
+
+We can filter for multiple conditions at once. We separate them with ","
+```{r}
+# Grab data that is from 2012 and later, and from the origin countries of Congo and Liberia
+refugees2011_15 %>% filter(Year >= 2012, Origin %in% c("Congo", "Liberia"))
+
+# Grab data that represents more than 500 asylum seekers resettling in Angola in the latest year possible. 
+refugees2011_15 %>% 
+  filter(AsylumSeekers > 500, 
+         Country %in% c("Angola"), 
+         Year == max(Year))
+
+# Grab data that has a total population of less than 1000 and greater than 2000 and where the year is 2012
+refugees2011_15 %>% 
+  filter(Year == 2012, 
+         TotalPop <= 1000 | TotalPop >= 2000)
+
+
+```
+
+## Filtering and Select Quiz
+Filtering and selecting can be done at the same time and sometimes can be confused with each other. Complete the following exercises. 
+
+```{r}
+# Make a subset that shows just data where asylum seekers are greater than 10,000 and the country of asylum is Belgium. The Asylum seeker column should be renamed "Num_Asylum_Seekers" 
+refugees2011_15 %>% 
+  select(Country, Num_Asylum_Seekers = AsylumSeekers) %>% 
+  filter(Num_Asylum_Seekers >= 10000)
+
+# Make a subset that shows just cases where there are more asylum seekers than refugees in 2012. Include only the relevant columns. 
+refugees2011_15 %>% 
+  filter(AsylumSeekers > Refugees, 
+         Year == 2012) %>% 
+  select(Year, Refugees, AsylumSeekers)
+
+
+# Make a subset with just numbers of refugees fleeing to Australia in 2015. Include only the relevant columns.
+refugees2011_15 %>% 
+  select(Year, Country, Refugees) %>% 
+  filter(Country == "Australia",
+         Year == 2015)
+
+
+```
+
+# Mutating
+Sometimes we don't want to only pull existing information, we may want to either change existing columns or create new columns. For this type of activity, we will use the mutate function. 
+
+## Changing data type
+```{r}
+# One common edit is changing the data type of a column. We have done this before in the following format: 
+#dataset$variable <- as.datatype(dataset$variable). Now we are going to do this with the mutate function.
+refugees2011_15 %>% mutate(Country = as.character(Country))
+
+# Change the Country column to be character. Since we won't actually assign this to an object, we won't make any permanent changes. 
+
+
+# Notice that if we use the same column name as the existing column, it will overwrite the column. 
+
+# Now do the same code but name the column "char_country"
+refugees2011_15 %>% mutate(char_country = as.character(Country))
+
+# Notice that when we use a new name it leaves the old column intact and creates a new column at the end of the dataframe. 
+
+# Remember that if we use mutate_if, it will enable us to do this on multiple columns at the same time. 
+refugees2011_15 %>% mutate_if(is.factor, as.character)
+
+# We can also make multiple data type adjustments at the same time. Change year to integer and Origin to character. Overwrite the existing columns. 
+refugees2011_15 %>% mutate(Year = as.integer(Year), Origin = as.character(Origin))
+
+# Try turning the Asylum seekers variable and the Origin variable into logical variables and Country into a numeric column. Create new column names. What happens? 
+refugees2011_15 %>% 
+  mutate(log_asy = as.logical(AsylumSeekers), 
+         log_or = as.logical(Origin))
+
+
+```
+
+Q: What happens when you turn a numeric variable into logical? 
+A: 
+
+Q: What happens when you try to turn a factor or character variable into a logical variable? 
+A: 
+
+Q: What happens when you try to turn a character or factor variable into a logical variable? 
+A: 
+
+## Making text adjustments
+You can also use mutate to do text adjustments on variables. This comes in handy with text analytics. 
+```{r}
+# We have already seen one text analytic function in this RMD: str_to_lower(). Remember this turns all text to lowercase. Overwrite the Origin column with this function. 
+refugees2011_15 %>% mutate(Origin = str_to_lower(Origin))
+
+
+# Try this with the country column. This time make a new column instead of adjusting the original. 
+
+
+# Another common text editing function is the paste0 function. This function effectively glues text together. Make a new column called stats that says the country of Origin name, a colon, and then the number of asylum seekers. For example, the first row should say: "Colombia: 3"
+refugees2011_15 %>% 
+  mutate(stats = paste0(Origin, ": ", AsylumSeekers))
+
+# Note that text must be in "" while variable names are not. 
+
+# Now you try. Make a new column called refugee_stats, that includes information for the year, the origin and the asylum country, and the number of refugees. The *fourth* row should say: "In 2011, 34 refugees went from Iran to Afghanistan." 
+
+refugees2011_15 %>% 
+  mutate(refugee_stats = paste0("In ", Year, ", ", Refugees, " refugees went from ", Origin, " to ", Country))
+
+```
+
+## Mathematical Operations 
+We have already experimented with vectors of the same length and mathematical operations. Guess what-- variables are vectors of the same length. You can do these same types of operations within mutate functions. 
+```{r}
+# Make a new column called "net_refugees" that subtracts the number of asylum seekers from refugees. 
+refugees2011_15 %>% 
+  mutate(net_refugees = Refugees - AsylumSeekers)
+
+# Make a new column that subtracts the refugees and asylum seekers from the total population. Call it "pop_less_asy_and_ref"
+refugees2011_15 %>% mutate(pop_less_asy_and_ref = TotalPop - Refugees - AsylumSeekers)
+
+# Make a new column called "RefugeesSquared" that squares the number of refugees. 
+refugees2011_15 %>% mutate(RefugeesSquared = Refugees ^ 2)
+
+```
+
+Q: Why does R autofill column names like "AsylumSeekers" but not net_refugees? 
+A: 
+
+## Mutate with ifelse 
+One last common use of mutate is creating a conditional column with the function ifelse. Type ?ifelse into the console to look at the documentation. Select the first option. 
+```{r}
+# Use ifelse to make a column called "ref_greater" that checks to see if there are more refugees than asylum seekers. If yes, return TRUE and if not return FALSE
+refugees2011_15 %>% mutate(ref_greater = ifelse(Refugees > AsylumSeekers, TRUE, FALSE))
+
+# Make a new column that checks to see whether the Origin and Asylum country are the same. Call this "countries" and return "Same" if they are and "Different" if not. Because these factors have different levels, you will need to nest both columns in "as.character" so it looks at the specific text in each. 
+
+refugees2011_15 %>% mutate(countries = ifelse(as.character(Origin) == as.character(Country), "SAME", "Different"))
+
+```
+
+# Removing NAs
+One last common thing we want to take care of is removing NAs. We can do this in one of two ways. 
+
+## na.omit() 
+This removes every row in the dataset with an NA. This is the most destructive method (meaning we will lose the most data)
+```{r}
+# Run na.omit on the dataset. 
+refugees2011_15 %>% na.omit(Refugees)
+
+```
+
+Q: How many rows are left?
+A: 
+
+## na.omit() with select() 
+One way of losing less data is selecting only the variables you absolutely need before running na.omit. Try this out. 
+```{r}
+# Suppose we only need the Year, Country, Origin, and AsylumSeekers columns. Then remove all missing data. 
+refugees2011_15 %>% select(Year, Country, Origin, AsylumSeekers) %>% na.omit()
+
+```
+
+Q: Now how many rows are there? 
+A: 
+
+## filtering NAs
+The least destructive method is by filtering so that you just remove rows with NAs in a single column. 
+```{r}
+# Here is how you would filter out all the NAs in just the Refugees Column.
+refugees2011_15 %>% filter(!is.na(Refugees))
+
+# Now your turn. Filter out just NAs in the TotalPop column. 
+refugees2011_15 %>% filter(!is.na(TotalPop))
+
+
+```
+
+Q: How many rows are left? 
+A: 
+
+# Practice
+```{r}
+# Make a subset with just information for 2011, where there are no NAs in the Refugees column. Create a new column that has the total population minus refugees, called "total_less_refugees". Select only this new column and the Country and Origin columns. 
+
+
+# Create a subset with just data from the origin of Cuba for 2015. Make a new column that says the total number of refugees and asylum seekers. Keep only the Country and new column. Remove all the NAs in this dataset. 
+
+
+# Create a subset with only cases where there are at least 100 refugees and 100 asylum seekers. Create a new columm that says "There are x more refugees than asylum seekers" when there are more refugees, and "There are x more asylum seekers than refugees" when there are more asylum seekers. Fill "x" in with the correct value. Call this column asy_ref_ratio. Keep only the Year, Country, Origin, and asy_ref_ratio columns. 
+
+```
+
+

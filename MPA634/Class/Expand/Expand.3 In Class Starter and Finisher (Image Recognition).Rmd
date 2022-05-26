@@ -1,0 +1,93 @@
+---
+title: "Expand.3 In Class Finisher (Image Recognition)"
+author: "Your Name"
+date: "4/5/2022"
+output: html_document
+---
+ 
+```{r}
+library(httr)
+library(jsonlite)
+library(tesseract)
+library(magick)
+# install.packages("image.libfacedetection", repos = "https://bnosac.github.io/drat")
+library(image.libfacedetection)
+```
+
+# Introduction
+Just like we can generate features from our string variables, we also can generate features from images. For a long time image recognition was something computers were notoriously bad at. Then in 2012, a breakthrough in neural network models led to a massive improvement in recognition accuracy. The tools we will use today still have a long way to go, but they are much better than nothing.
+
+# Text in images
+One thing we can try to do is see if there is any text in images, which we could then use our string techniques to generate features from. The tesseract package was created for this purpose and supports over 100 languages. 
+
+```{r}
+# Chooseing english as the dictionary. 
+eng <- tesseract("eng")
+
+# Put in the url
+text <- tesseract::ocr("https://grocerytv.com/content/images/2020/06/covid19-lamar-digital-poster-wash-ands-lamar.jpg", engine = eng)
+
+# This is the text
+cat(text)
+```
+
+# Facial Recognition
+We can also check to see if there are any faces, and where they are, if helpful. 
+```{r}
+# Put in the url 
+image <- image_read("http://bnosac.be/images/bnosac/blog/wikipedia-25930827182-kerry-michel.jpg")
+
+# Run detection 
+faces <- image_detect_faces(image)
+faces
+plot(faces, image, border = "red", lwd = 7, col = "white")
+```
+
+# Imagga API 
+For general recognition in images, there are few tools better than Imagga, a company who has an API for image recognition. You will need to make an account to access imagga and make your own key. 
+```{r}
+# Put url here
+photo <- "https://brightspotcdn.byu.edu/dims4/default/5c2387b/2147483647/strip/true/crop/1000x750+0+615/resize/400x300!/quality/90/?url=https%3A%2F%2Fbrigham-young-brightspot.s3.amazonaws.com%2F7f%2F5c%2F3c2e72c2437eb60bf50f1a88625e%2Fspaghetti-2.jpg"
+
+# Concatenate with full url. 
+url <- paste0("https://api.imagga.com/v2/tags/?image_url=", photo)
+
+# Make request. Don't use my authentication! Get your own! 
+request <- GET(url, authenticate("acc_9502c0f6e7caa0e", "d9cf151ede252ec7801f755112489fcb"))
+
+# Convert to dataframe format 
+data <- fromJSON(rawToChar(request$content))
+
+# Pull out relevant information. 
+df <- data.frame(data[["result"]][["tags"]][["confidence"]], data[["result"]][["tags"]][["tag"]][["en"]])
+colnames(df) <- c("confidence", "tag")
+```
+
+With a different photo.
+```{r}
+photo <- "http://bnosac.be/images/bnosac/blog/wikipedia-25930827182-kerry-michel.jpg"
+
+url <- paste0("https://api.imagga.com/v2/tags/?image_url=", photo)
+request <- GET(url, authenticate("acc_9502c0f6e7caa0e", "d9cf151ede252ec7801f755112489fcb"))
+
+data <- fromJSON(rawToChar(request$content))
+
+df <- data.frame(data[["result"]][["tags"]][["confidence"]], data[["result"]][["tags"]][["tag"]][["en"]])
+colnames(df) <- c("confidence", "tag")
+```
+
+# Training your own image recognition model based on labels
+This is too glitchy too teach in the class (I never even got it working) but it's pretty cool so I will put here the resources I found just for kicks.  
+
+## Blog about how to do it:
+https://www.r-bloggers.com/2021/03/how-to-build-your-own-image-recognition-app-with-r-part-1/
+
+## Dataset you could try it on:
+https://www.kaggle.com/datasets/deepcontractor/is-that-santa-image-classification
+
+## Troubleshooting package download:
+https://www.youtube.com/watch?v=cIUg11mAmK4&ab_channel=LiquidBrain
+
+## Also here is more information about the tesseract and magick packages: 
+https://cran.r-project.org/web/packages/tesseract/vignettes/intro.html
+

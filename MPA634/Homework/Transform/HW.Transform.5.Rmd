@@ -1,0 +1,138 @@
+---
+title: "HW.Transform.5"
+author: "Logan Hardy"
+date: "02/02/2022"
+output: html_document
+---
+
+20 points (15 for this assignment, 5 for being on time)
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, 
+                      message = FALSE)
+library(tidyverse)
+```
+
+# Documentation (2 points) 
+Look at the documentation of the str_replace() function. This function is my favorite function for text editing. 
+```{r}
+?str_replace
+```
+
+Q: Using the information in the documentation, In what order do the following three things go? a. the string to be replaced, b. the entire string with the mistake, or c. the text to replace it with?  
+A: b,a,c
+
+# Source code (2)
+Look at the source code of the str_replace function from the stringr package. 
+```{r}
+stringr:::str_replace
+```
+Q: What needs to happened to return the error "Empty `pattern` not supported"?    
+A: It needs to be empty, or no option parameter provided 
+
+# Loop to function 
+## Step 1 (3 points)
+```{r}
+# Turn the following for loop from the last homework into a function called "food_conversion". 
+food_conversion <- function(vec) {
+  for (food in vec) {
+    print(paste0(str_to_title(food), " is my favorite food."))
+  }
+}
+
+
+# Run the following vector through it. 
+string_vec <- c("PIZZA", "STROGANOFF", "CAKE", "MALAI KOFTA")
+
+food_conversion(string_vec)
+
+```
+
+## Step 2 adding an argument (2 points)
+Copy and paste your function into the code chunk below. Make a detail argument called favorite that when TRUE prints out the output we have as it is in the version above, but when FALSE changes the output to "___ is NOT my favorite food". 
+
+```{r}
+food_conversion <- function(vec, favorite = TRUE) {
+  not_Favorite = ''
+  if (!favorite) {
+    not_Favorite = 'NOT '
+  }
+  for (food in vec) {
+    print(paste0(str_to_title(food), " is ", not_Favorite, "my favorite food."))
+  }
+}
+
+# Run the string_vec through the new food_conversion function, this time turn favorite to FALSE.  
+food_conversion(string_vec, FALSE)
+
+```
+
+## Step 3 adding an error (2 points)
+Add a step in your function that checks if the vector is character. If it isn't, return the error "The input vector is not character!"
+```{r}
+food_conversion <- function(vec, favorite = TRUE) {
+  if(!is.character(vec)) {
+    stop("The input vector is not character!")
+  }
+  
+  not_Favorite = ''
+  if (!favorite) {
+    not_Favorite = 'NOT '
+  }
+  for (food in vec) {
+    print(paste0(str_to_title(food), " is ", not_Favorite, "my favorite food."))
+  }
+}
+
+# Run the string_vec through the new food_conversion function, this time turn favorite to FALSE.
+food_conversion(string_vec, FALSE)
+
+#number_vec <- c(12,243,1231,6,97,38)
+#food_conversion(number_vec)
+
+```
+
+Testing code chunk
+```{r, eval = FALSE}
+# Run logic_vec through the latest food_conversion function. Once you have determined that this version of the function outputs an error like it is supposed to, add , eval = FALSE to the header of this code chunk so it doesn't try to knit.
+logic_vec <- c(TRUE, FALSE, FALSE, TRUE, TRUE)
+food_conversion(logic_vec)
+
+
+
+```
+
+## Step 4 returning the vector (4 points)
+So far your function just runs through the loop and prints each iteration one at a time. Now change your function so that it actually saves the output as a new vector called edited_vec and returns it. (Hint. You will likely have to adjust the format of your function by using seq_along. There is an example in the finisher file.)   
+```{r}
+food_conversion <- function(vec, favorite = TRUE) {
+  if(!is.character(vec)) {
+    stop("The input vector is not character!")
+  }
+  
+  not_Favorite = ''
+  if (!favorite) {
+    not_Favorite = 'NOT '
+  }
+  edited_vec <- c()
+  for (i in seq_along(vec)) {
+    edited_vec[[i]] <- paste0(str_to_title(vec[[i]]), " is ", not_Favorite, "my favorite food.")
+  }
+  
+  return(edited_vec)
+}
+
+# Run the string_vec through your function, with favorite = TRUE
+edited_vec <- food_conversion(string_vec, TRUE)
+edited_vec
+```
+
+# Optional feedback: 
+
+How hard was this assignment? Was it: too hard, too easy, or just right? 
+
+ANSWER: Just right 
+
+Approximately how long did this assignment take you? 
+
+ANSWER: 1 hour

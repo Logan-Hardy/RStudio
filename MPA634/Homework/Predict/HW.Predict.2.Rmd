@@ -1,0 +1,231 @@
+---
+title: "HW.Predict.2"
+author: "Logan Hardy"
+date: "03/16/2022"
+output: html_document
+---
+
+35 points (30 for this assignment, 5 for being on time)
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(fastDummies)
+library(corrplot)
+library(caret)
+library(VIM)
+
+```
+
+# Importing Data 
+Import the life expectancy dataset. Make strings into factor variables. 
+```{r}
+life_expectancy <- read_csv("../../Data/Life Expectancy Data.csv") %>% mutate_if(is.character, as.factor)
+
+```
+
+# Cleaning (4 points)
+Make a copy of the dataset that has all large factors either combined or dropped, and that all factors have been made into numeric variables. You may also want to rename the Life expectancy column so you don't run into errors with the space later on. 
+```{r}
+# make a copy of the dataset without country.  Add underscore to Life_Expectancy and change Status to numeric
+life_expectancy_copy <- life_expectancy %>% mutate("Life_Expectancy"=`Life expectancy`, Status = ifelse(Status == "Developed",0,1)) %>% select(-`Life expectancy`, -Country)
+
+```
+
+Make a new copy of the numeric dataset that has NAs removed. 
+```{r}
+life_expectancy_no_nas <- life_expectancy_copy %>% na.omit()
+
+```
+
+# Correlation (4 points)
+Make a correlation matrix, then visualize the data matrix with a corrplot and method of your choice. Adjust the aspect ratio so it is easier to read. 
+```{r, fig.width = 6, fig.height = 6}
+corr_matrix <- cor(life_expectancy_no_nas)
+corrplot(corr_matrix, method="color", type="lower", tl.cex = .8)
+
+```
+
+# Regression model (6 points)
+Run a regression model with the data to predict life expectancy. Output a summary of the model. 
+```{r}
+model <- lm(Life_Expectancy~., life_expectancy_no_nas) 
+summary(model)
+
+```
+
+Q: What is the R and Adj R squared? What do these values represent?  
+A: R-squared:  0.8386,	Adjusted R-squared:  0.8366
+
+Q: What is the coefficient of the HIV/Aids variable?  
+A: -4.481e-01
+
+Q: What is the p value of the population variable? Is this variable considered correlated based on what we discussed in class?  
+A: 0.72558; No, population is not considered correlated because it has a high p-value and shows no correlation with Life_Expectancy in the correlation matrix
+
+# Standardizing the dataset (2 points)
+Create a standardized version of the dataset using min-max normalization. Print out the first row of this normalized dataset. Then output the summary of the model for this dataset. 
+```{r}
+#normalize data to min/max scaler 
+normalize <- function(x) {
+    return((x- min(x, na.rm = TRUE)) /(max(x, na.rm = TRUE)-min(x, na.rm = TRUE)))
+}
+min_max <- as.data.frame(lapply(life_expectancy_no_nas, normalize))
+
+#print first row of normalized data 
+min_max %>% head(1)
+
+#create and output summary 
+model_min_max <- lm(Life_Expectancy~.,min_max) 
+summary(model_min_max)
+
+```
+
+Q: Based on the coefficients, which variable is having the greatest effect on the y variable?  
+A: infant.deaths 
+
+# Modeling 
+Now we are going to see if we can find a better model. Sometimes we can, sometimes we can't. 
+
+## Imputing NAs (4 points)
+Pick two imputing NA methods for this data. Then run the original clean (no NA) data, and these two new datasets into the lm_fun from the finisher file. (You will have to pull that function into this document.) Rbind these into a table of the R-Squared, Adjusted R-Squared, MAE, and RMSE.
+```{r}
+# Create the datasets
+
+# Imputing with mean
+impute_mean <- life_expectancy_copy %>% 
+  mutate(across(where(is.numeric), ~replace_na(.x, mean(.x, na.rm = TRUE)))) 
+
+# Imputing with mode
+calc_mode <- function(x){
+  # List the distinct / unique values
+  distinct_values <- unique(x)
+  # Count the occurrence of each distinct value
+  distinct_tabulate <- tabulate(match(x, distinct_values))
+  # Return the value with the highest occurrence
+  distinct_values[which.max(distinct_tabulate)]
+}
+
+# Since there isn't always a mode for numerical values, we will fill with the mode, then the median
+impute_mode <- life_expectancy_copy %>% 
+  mutate(across(everything(), ~replace_na(.x, calc_mode(.x)))) %>% 
+  mutate(across(where(is.numeric), ~replace_na(.x, median(.x, na.rm = TRUE))))
+
+#impute using kNN
+impute_knn <- life_expectancy_copy %>% kNN(imp_var = FALSE)
+
+
+```
+
+```{r}
+# Run the models and create a table
+lm_fun <- function(df, y, results = TRUE) {
+    model <- lm(as.formula(paste(y, "~.", collapse="")), df)
+    results_vec <- c(round(summary(model)[["r.squared"]], 3), 
+                     round(summary(model)[["adj.r.squared"]], 3), 
+                     round(MAE(predict(model), df[[y]]), 3),
+                     round(RMSE(predict(model), df[[y]]), 3))
+    if (results) return(results_vec)
+    else return(model)
+}
+
+life_expectancy_lm <- lm_fun(life_expectancy_no_nas, "Life_Expectancy")
+impute_mean_lm <- lm_fun(impute_mean, "Life_Expectancy")
+impute_mode_lm <- lm_fun(impute_mode, "Life_Expectancy")
+impute_knn <- lm_fun(impute_knn, "Life_Expectancy")
+
+
+model_results <-
+  rbind(life_expectancy_lm, 
+        impute_mean_lm, 
+        impute_mode_lm, 
+        impute_knn)
+
+colnames(model_results) <- c("R2", "Adj R2", "MAE", "RMSE")
+
+model_results
+
+```
+
+Q: Which model is best?  
+A: life_expectancy_lm (eliminating NAs)
+
+## Addressing Skewness (6 points)
+From now on work with your data that has produced the best model. Check the skewness of your y variable both through the skewness function and through a histogram. 
+```{r}
+moments::skewness(life_expectancy_no_nas$Life_Expectancy, na.rm = TRUE)
+
+life_expectancy_no_nas %>% ggplot(aes(x = Life_Expectancy)) + geom_histogram(fill ="lightblue")
+
+```
+
+Q: Is the y variable positive skewed, normally distributed, or negatively skewed?   
+A: negatively skewed 
+
+Pick 3 skewness adjustments. Make a dataset and model for each, then bind them into the table that shows the results of past models. 
+```{r}
+# Cubed y
+no_nas_cubed_y <- life_expectancy_no_nas %>% 
+  mutate(y_cubed = Life_Expectancy^3) %>% 
+  select(-Life_Expectancy)
+
+# Cubed_root y
+no_nas_cube_root_y <- life_expectancy_no_nas %>% 
+  mutate(y_cube_root = Life_Expectancy^(1/3)) %>% 
+  select(-Life_Expectancy)
+
+# Logarithmic y
+no_nas_log_y <- life_expectancy_no_nas %>% 
+  mutate(y_log = log(Life_Expectancy)) %>% 
+  select(-Life_Expectancy)
+
+
+cube_lm <- lm_fun(no_nas_cubed_y, "y_cubed")
+cube_root_lm <- lm_fun(no_nas_cube_root_y, "y_cube_root")
+log_lm <- lm_fun(no_nas_log_y, "y_log")
+
+transformed_model_results <-
+  rbind(model_results, 
+        cube_lm, 
+        cube_root_lm, 
+        log_lm)
+
+colnames(transformed_model_results) <- c("R2", "Adj R2", "MAE", "RMSE")
+
+transformed_model_results
+
+
+
+
+
+```
+
+Q: Which model had the best results?  
+A: log_lm (taking the log of the y-Life_Expectancy after all of the nas had been removed)
+
+# Predicting (4 points)
+Take your best dataset and run it through the lm_fun again, this time outputing the model instead of the results. Then create a random sample of two observations from your data (dropping the y of course!) and generate a prediction for them with a confidence interval. If you have created an adjustment, make sure you do the opposite adjustment so the predictions are readable. 
+
+(Opposite of ^2 is ^(1/2), 
+Opposite of ^3 is ^(1/3), 
+Opposite of log() is exp())
+
+```{r}
+log_model <- lm_fun(no_nas_log_y, "y_log", results = FALSE)
+
+# Next we are going to create a hypothetical test county by grabbing a sample of 2 from the covid_clean_no_nas dataset. In real life, we would have a a whole dataset potentially of new counties we wanted to predict rates for. But this will work here.
+life_expectancy_test <- sample_n(no_nas_log_y %>% select(!y_log), 2)
+
+# Use the predict function with the log model to generate a prediction for these two observations. 
+predict(log_model, newdata = life_expectancy_test, interval = "confidence") %>% exp()
+```
+
+# Optional feedback: 
+
+How hard was this assignment? Was it: too hard, too easy, or just right? 
+
+ANSWER: Just right 
+
+Approximately how long did this assignment take you? 
+
+ANSWER: 2.5 hours 

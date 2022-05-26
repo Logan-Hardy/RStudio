@@ -1,0 +1,90 @@
+---
+title: "HW.Transform.6"
+author: "Logan Hardy"
+date: "02/06/2022"
+output: html_document
+---
+25 points (20 for this assignment, 5 for being on time)
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, 
+                      message = FALSE)
+options(scipen=999)
+library(tidyverse)
+```
+
+# Step 1: Data (2 points)
+Explore at the midwest dataset that is loaded in with tidyverse in the console
+
+Q: Which variables are numerical? Which are categorical? Are there any unstructured?  
+A: Numerical: PID  area poptotal popdensity popwhite popblack popamerindian popasian popother percwhite
+Categorical: county state category
+Unstructured: No
+
+# Step 2: Apply (8 points)
+```{r}
+# Run only the numeric midwest columns into an apply function that outputs the median for each *column* 
+num <- map_lgl(midwest, is.numeric)
+apply(midwest[num], 2, median)
+
+# Select only midwest columns that start with "perc". Pipe that into an apply function which outputs the smallest value for each *row* 
+midwest %>% select(starts_with('perc')) %>% apply(1, min)
+
+# Select only columns that begin with pop. Pipe that into an apply function that goes through every *value* and checks to see if it is greater than 100. If it is in greater 100, have it output "This is greater than 100". If it is less than 100 have it print "This is less than or equal to 100". Pipe your results into as_tibble() and check the results. (4 points) 
+midwest %>% select(starts_with('pop')) %>% apply(c(1,2), function(x) { if (x > 100) {print('This is greater than 100')} else {print('This is less than or equal to 100')}}) %>% as_tibble()
+
+
+```
+# Step 3: Lapply (3 points)
+The sort function works a lot like the arrange function except where the arrange function wants to rearrange a whole dataframe, the sort function wants to rearrange a vector. Instead of using a nested desc() function, it has a parameter called decreasing that can be set to TRUE or FALSE. 
+
+Experiment with the following code to understand how the sort function works. Since it outputs a vector itself, not that you can pick an individual result with an index. 
+```{r}
+num_vec <- c(533, 1, 54, 89, 1010)
+sort(num_vec)
+
+num_vec <- c(533, 1, 54, 89, 1010)
+sort(num_vec, decreasing = TRUE)
+
+string_vec <- c("Zoo", "Courage", "Best", "Wildabeast")
+sort(string_vec, decreasing = TRUE)[2]
+```
+
+Using the sort function, run the whole midwest dataset through a lapply function that will return the highest value if the variable is numeric, or the last value alphabetically if it is categorical. 
+```{r}
+lapply(midwest, function(x) sort(x, decreasing = TRUE)[1])
+
+
+```
+
+# Step 4: Sapply (5 points)
+Use sapply to output a logical vector checking if each column is a dbl (double) column. Use the output to create a new subset that you save as double_midwest with only dbl columns. Show a head() of that new subset. 
+```{r}
+double_midwest <- sapply(midwest, function(x) is.double(x)) 
+head(double_midwest)
+```
+
+Use a sapply function to output the quantiles of each numeric variable. 
+```{r}
+sapply(midwest, function(x) if (is.numeric(x)) {quantile(x)})
+```
+
+# Step 5: Maps (2 points)
+Use a maps2 function to output a concatenated character vector of the county and state columns. For example, the first result should be "ADAMS, IL". Hint: There is a very similar example in the finisher file! 
+```{r}
+map2_chr(midwest$county, midwest$state, ~ paste0(.x, ', ', .y))
+
+```
+
+
+--End--
+
+# Optional feedback: 
+
+How hard was this assignment? Was it: too hard, too easy, or just right? 
+
+ANSWER: Just Right
+
+Approximately how long did this assignment take you? 
+
+ANSWER: 2 hours

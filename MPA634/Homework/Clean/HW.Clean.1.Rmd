@@ -1,0 +1,166 @@
+---
+title: "HW.Clean.1"
+author: "Logan Hardy"
+date: "02/09/2022"
+output: html_document
+---
+
+30 points (25 for this assignment, 5 for being on time)
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, 
+                      message = FALSE)
+library(tidyverse)
+library(VIM)
+```
+
+# Import Data
+Import the 2014_Clinic_Quality dataset. 
+I recommend you take some time to look through the details of this dataset using the view tab and looking at its structure and summary. The better you know this dataset, the more prepared you will be to clean it. 
+
+Also, I rarely give you any falsified data. The majority of data in this dataset is legitimate but there have been a few things added for the sake of this assignment. 
+```{r}
+# Import data here 
+Clinic_Quality_2014 <- read_csv("../Data/Clinic_Quality_2014.csv") %>% mutate_if(is.character,as.factor)
+```
+
+# Make a copy of your dataset(2 points)
+Before you do anything else, make a copy of the dataset. Remember your knitted file should not have any full datasets printed out. Make sure anything you use to check your results has been commented out or piped into head() so your html doesn't end up too large. 
+```{r}
+# Make a copy that you will use to make all adjustments on. 
+Clinic_Quality_2014_copy <- Clinic_Quality_2014
+head(Clinic_Quality_2014_copy)
+```
+
+Q: How many rows and columns are there in this dataset?  
+A: 244 rows, 24 columns
+
+Q: Are there any empty rows and columns? You may want to use head() and tail() in the console to explore this.   
+A: Yes, there are both empty rows and empty columns
+
+# Na.omit() (2 points)
+Use na.omit in the console to see how many rows you would be left with if you removed all missing data. (Don't overwrite your data.)
+
+Q: How many rows are you left with?  
+A: 0 
+
+
+# Remove empty rows (2 points)
+Remove all empty rows. Overwrite your copied dataset. 
+```{r}
+Clinic_Quality_2014_copy <- Clinic_Quality_2014_copy[rowSums(is.na(Clinic_Quality_2014_copy)) != ncol(Clinic_Quality_2014_copy),]
+
+```
+
+Q: How many rows did that remove?  
+A: 13
+
+# Branched Data (5 points)
+There is a branch in this data. You may have to search a minute to find it. Some things to look out for: A branch usually stems from a specific variable and everything in the branch has the one thing in common. A branch will show a pattern of NAs. Instead of random NAs, each column in the branch will have NAs in the same place. 
+
+Make a subset of the branched data saved as a new dataset name. Include some identifying column that could be used to reunite the data with the other information in the dataset. Also include the column that creates the branch. Remove all NAs from the branch. Then remove the branch columns from the original dataset. 
+```{r}
+cq_branch <- Clinic_Quality_2014_copy %>% select(Organization_Name, `Intermountain Facility`, `Intermountain rating`, `Intermountain Board Member Count`, `IHC Pediatric`) %>% na.omit()
+
+# Then save our np_survey_reduced dataset without the subset. 
+Clinic_Quality_2014_copy <- Clinic_Quality_2014_copy %>% select(!c(`Intermountain Facility`, `Intermountain rating`, `Intermountain Board Member Count`, `IHC Pediatric`)) 
+
+```
+
+# Input a specific value (2 points)
+Looking at the original name of the dataset and the year column, we can presume that any missing values in the year column can be filled with 2014. Use the the replace_na code in the finisher file to just replace values in this column. Overwrite the copied dataset. 
+```{r}
+Clinic_Quality_2014_copy <- Clinic_Quality_2014_copy %>% 
+  mutate(across(Year, ~replace_na(.x, 2014)))
+# Adjust the following code to see if there are any missing values left in this column.
+sum(is.na(Clinic_Quality_2014_copy$Year))
+```
+
+# Removing empty columns (3 points)
+It looks like some of the columns don't have any data at all. 
+```{r}
+# Make a logical vector to see which of the columns are empty (Check finisher)
+empty_columns <- colSums(is.na(Clinic_Quality_2014_copy)) == nrow(Clinic_Quality_2014_copy)
+
+# Total the number of empty columns 
+sum(empty_columns)
+```
+
+Q: How many empty columns are there?  
+A: 6
+
+Now ovewrite the copied dataset and remove all empty columns. 
+```{r}
+Clinic_Quality_2014_copy <- Clinic_Quality_2014_copy[, !empty_columns]
+
+
+```
+
+Q: Now how many variables are in your dataset?  
+A: 14
+
+# Remove columns with a cut off (3 points)
+Now you get to decide how many columns to keep in this dataset. Try a few cut off points and see how much data remains. Once you have decided on how many columns to remove, overwrite the existing copied dataset. *You should keep at least one column with missing data.* 
+```{r}
+Clinic_Quality_2014_copy <- Clinic_Quality_2014_copy %>% 
+  select_if(!colSums(is.na(Clinic_Quality_2014_copy)) > nrow(Clinic_Quality_2014_copy)/3)
+
+```
+
+Q: Why did you decide on the cut off that you ended up with?  
+A: I went with this cutoff because it reduced the dataset enough while keeping some NA's.  Also, if the cutoff was any greater it wouldn't make a difference.  I went with a conservative rate in case I were to run an updated version of this data through this same program 
+
+# Remove columns that are all the same value (2 points)
+There are a couple columns that are all one value. Remove them. 
+```{r}
+Clinic_Quality_2014_copy <- Clinic_Quality_2014_copy %>% select(where(~n_distinct(.) > 1))
+```
+
+
+# Replace missing values (3 points)
+Now replace all the missing values in the dataset with a value. You may choose to replace them with the kNN, mode, mean, or median. You may choose to replace numeric columns in a different way than categorical. Overwrite the copied dataset. 
+```{r}
+calc_mode <- function(x){
+  # List the distinct / unique values
+  distinct_values <- unique(x)
+  # Count the occurrence of each distinct value
+  distinct_tabulate <- tabulate(match(x, distinct_values))
+  # Return the value with the highest occurrence
+  distinct_values[which.max(distinct_tabulate)]
+}
+
+Clinic_Quality_2014_copy <- 
+Clinic_Quality_2014_copy %>% 
+  mutate(across(where(is.factor), ~replace_na(.x, calc_mode(.x)))) %>% mutate(across(where(is.numeric), ~replace_na(.x, median(.x, na.rm = TRUE))))
+
+```
+
+Q: Which method of replacing missing values did you choose? Why?  
+A: I replaced missing values in factor columns with the mode, or most common value, and I replaced missing values in numeric columns with the median in case the curve isn't normal so they wouldn't be as affected by outliers
+
+Review the rules about replacing missing data. 
+
+Q: Are there any columns that maybe we shouldn't have replaced the NAs?  
+A: "# of diabetes patients receiving appropriate care", "Total # of Diabetes Patients", "Diabetes Rate" maybe shouldn't have replaced NAs because they may have had zero diabetic patients and I replaced those with the medians for those columns 
+
+# Exporting data (1 point)
+Use write.csv to export your copied dataset. Don't overwrite the original dataset. Comment out that line when you have run it. 
+```{r}
+write.csv(Clinic_Quality_2014_copy, '../Data/Clinic_Quality_2014_copy.csv')
+```
+
+
+Knit your file and *make sure it doesn't print out the whole dataset anywhere.* 
+
+--End--
+
+# Optional feedback: 
+
+How hard was this assignment? Was it: too hard, too easy, or just right? 
+
+ANSWER: Just Right 
+
+Approximately how long did this assignment take you? 
+
+ANSWER: 2.5 hours 
+

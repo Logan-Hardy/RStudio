@@ -1,0 +1,248 @@
+---
+title: "Explore.2 in class Finisher (Data Types)"
+author: "Laurel Galli-Graves"
+date: "11/1/2021"
+output: html_document
+---
+# Set up code chunk
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(message = FALSE, 
+                      warning = FALSE, 
+                      echo = TRUE)
+```
+Not all markdown files have a set up chunk. This just sets up default options for every code chunk.
+
+# Import and load libraries 
+```{r}
+library(tidyverse)
+# You may need to install this package if it says "there is no package..." In those cases, you can click the alert that has probably come on the top of the screen saying to import the packages, or you can type install.packages("tidyverse") into the console.
+```
+
+# Importing data
+## Method 1: Importing through the base function read.csv() 
+```{r, message = FALSE}
+# If this method throws a "No such file..." error, you need to make sure the dataset is in the same folder as this rmd. Alternatively, you can import the whole file path by using importing the dataset manually through base. 
+crash.2019 <- read.csv("crash2019.csv", stringsAsFactors = TRUE)
+```
+
+Use the view tab to look at the data. 
+
+Q: Which variables are unstructured? 
+A: CRASH_ID, MAIN_ROAD_NAME
+
+Use str() to look at the dataset. 
+```{r}
+str(crash.2019)
+```
+
+Q: How many rows are there in this dataset? How many columns? 
+A: 252500 rows, and 32 columns. (Note, variable here is synonymous with column unlike in python.)
+
+Q: What is the most common data type? 
+A: Factors are the most common.
+
+Q: How many levels does the CRASH_ID column have? Is this a good factor column? 
+A: It has 252,500, the same number as the number of rows. This means it is not a good factor column. 
+
+Q: Has the WORK_ZONE_RELATED variable imported correctly? What should be its data type? 
+A: No. It should be a logical variable. 
+
+Q: Where else can you go to quickly see the structure of the data? 
+A: Click the blue arrow on your global environment. 
+
+Use summary to explore this dataset. 
+```{r}
+summary(crash.2019)
+```
+
+Q: What information is available for factor strings when you use summary()? 
+A: Factor strings show the most common factors (categories), and how many NAs there are in each   
+
+Q: What information is available for numeric variables? 
+A: Summary statistics--mean, median, 1st quartile, 3rd quartile, min, max, and the number of NAs. 
+
+## Method 2: Importing from readr 
+```{r, message = FALSE, warning = FALSE}
+crash_2019 <- read_csv("crash2019.csv") 
+```
+
+Use str() to look at crash_2019. 
+```{r}
+str(crash_2019)
+```
+
+Q: Look at the first line of this function. What is different about this output? What is the same? 
+A: The whole dataset is a different class, spec_tbl_df instead of data.frame. This matters very little to us for this class. All of the same functions will work for data.frames and tibbles. It also tells us the rows and columns. 
+
+Q: Look at the CRASH_DATETIME column. How has it read in this time? 
+A: It has read in as a POSIXct column. This means R recognizes it as a date. 
+
+Q: Has the WORK_ZONE_RELATED column read in correctly this time? 
+A: Yes it is a logical column. 
+
+Q: How has it read in strings? How is this different from factors? 
+A: Strings have been read in as character, which does not group them into levels. 
+
+Q: Does this output include levels? Why? 
+A: No it doesn't because these have not read in as factors. 
+
+Q: How has it read in the CRASH_ID column? Is this the right format? 
+A: It has read it in as a numeric variable. This is not correct because it doesn't stand for real values. 
+
+
+Use summary() to look at this dataset. 
+```{r}
+summary(crash_2019)
+```
+Q: What information do we get for the POSIXct variable? 
+A: We get summary statistics and NAs. 
+
+Q: What information do we get about character variables? 
+A: Not much. Just that they are character variables and their length, which is the same as the number of rows. 
+
+Q: What information do we get about logical variables? 
+A: The number of true and falses. 
+
+Q: Which logical variable has the LEAST number of trues? 
+A: DOMESTIC_ANIMAL_RELATED.
+
+## Method 3: Importing from readr with factors *Most preferred*
+```{r}
+crash_2019 <- read_csv("crash2019.csv") %>% mutate_if(is.character, as.factor)
+# Notice, since we are using the same name as we did when we read this in with read_csv the last time, this will overwrite that dataset. 
+```
+
+This time look at this dataset in the global environment. 
+
+Q: Why is this the most preferred? 
+A: It still correctly identifies our logical and date variables, while importing strings as factors, which is helpful when exploring data. 
+
+# Other helpful exploratory functions
+```{r}
+head(crash_2019)
+tail(crash_2019, n = 10)
+# Finally, view! Click on the name of the dataset in the global environment. 
+```
+
+*Note*: in general I recommend NOT putting summary statistics in an RMD that you will knit. This will keep you from having tons of output in your knitted file. You can either comment it out (#) or just run it in the console. 
+
+
+# Changing data types
+There are still some columns that don't have the right data type. 
+```{r}
+#First change the CRASH_ID column. 
+crash_2019$CRASH_ID <- as.character(crash_2019$CRASH_ID)
+
+# Do the same for the route column. 
+crash_2019$ROUTE <- as.character(crash_2019$ROUTE)
+
+# Here are the other main functions: as.factor(), as.numeric(), as.logical(), as.Date()
+
+# Change the CRASH_SEVERITY_ID dataset to its proper format. 
+crash2019$CRASH_SEVERITY_ID <- 
+  factor(crash2019$CRASH_SEVERITY_ID, ordered = TRUE, 
+                                levels = c(1:5))
+```
+
+# Changing all datatypes at once. 
+How would you change all the logical variables into numeric variables with mutate_if? 
+```{r}
+crash_2019 <- crash_2019 %>% mutate_if(is.logical, as.numeric)
+```
+
+Q: When does it make sense to have strings (text) as factors, when should they be character? 
+A: Any time you have unstructured (unique) strings or are doing text editing, they should be characters. If there are clear, distinct categories, they should be factors. Sometimes you'll have something in the middle--a variable with too many factors or text that should be grouped into fewer categories. These are complex factors, and we will learn what to do with these in future classes. 
+
+Q: Does it matter which type of numeric format numeric variables are in? 
+A: No. For our purposes in this class they can read in as int, dbl, or num, and all of those will work. 
+
+# On your own 
+Import the fatal police shootings dataset with readr. Have strings import as factors.
+```{r}
+fatal_police_shootings <- read_csv("fatal_police_shootings.csv") %>% mutate_if(is.character, as.factor)
+```
+
+Use str() to look at the variable. 
+```{r}
+str(fatal_police_shootings)
+```
+
+Q: How many rows and columns are there? 
+A: 5416 rows and 14 columns. 
+
+Q: What is the current format of the id column? What should be the format of the id column?
+A: it is numeric. It should be character. 
+
+Q: Would the name column be best as a character column or factor? 
+A: Character because they are unique. 
+
+Q: What is the format of the date column? 
+A: Date format. 
+
+Q: How many levels does the race column have? 
+A: 6.
+
+Q: What are the two categories in the manner_of_death column? 
+A: Shot and shot and tasered. 
+
+Q: Can we see descriptive statistics in this output? 
+A: No. We need summary for that. 
+
+Q: Look at the manner_of_death variable. Is this character, factor, or a complex factor?
+A: It is a complex factor. We see that because there are a lot of levels that could be combined but not every row is unique. 
+
+Use summary to look at the dataset. 
+```{r}
+summary(fatal_police_shootings)
+```
+
+Q: What is the most common city? 
+A: Los Angeles.
+
+Q: Do more people exhibit mental illness than not? 
+A: No, more people do not show mental illness. 
+
+Q: What is the median age? 
+A: 35
+
+Q: Which variable has the most missing data? 
+A: Race, which has over 500 missing data points. 
+
+Q: What is the earliest date included in this dataset? 
+A: January 2, 2015
+
+
+Fix the data types of the id and name columns. 
+```{r}
+fatal_police_shootings$id <- as.character(fatal_police_shootings$id)
+fatal_police_shootings$name <- as.character(fatal_police_shootings$name)
+```
+
+Q: Why don't we see any output from that code? How can we know it worked? 
+A: Anytime we use the assignment character (<-) it creates or adjusts something in the global environment. We won't actually see the thing that is being adjusted unless we print it out. We should check str() to make sure it has changed correctly. 
+
+Print out the first 20 rows of the fatal shootings dataset. 
+```{r}
+head(fatal_police_shootings, n=20)
+```
+
+Q: How many rows will the output show you at a time? 
+A: 10
+
+Q: Out of these 20, how many were tasered? 
+A: 2
+
+Q: How many are women? 
+A: 1
+
+Q: What was the age of the man killed in Salt Lake City? 
+A: 42
+
+Q: What was he armed with? 
+A: A shovel. 
+
+If we wanted to change all of the remaining factor variable to character at once, how would we do it? 
+```{r}
+fatal_police_shootings <- fatal_police_shootings %>% mutate_if(is.factor, as.character)
+```
+

@@ -1,0 +1,213 @@
+---
+title: "HW.Clean.3"
+author: "Logan Hardy"
+date: "2/16/2022"
+output: html_document
+---
+
+25 points (20 for this assignment, 5 for being on time)
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, 
+                      message = FALSE, 
+                      warning = FALSE)
+library(tidyverse)
+library(fastDummies)
+```
+
+# Import
+Import the indianapolis use of force dataset with readr and mutate_if().
+```{r}
+
+indianapolis_use_of_force <- read_csv('../Data/indianapolis_use_of_force.csv') %>% mutate_if(is.character, as.factor)
+
+```
+
+Explore this dataset in the console. This is a dataset of incidents involving police and civilians in indianapolis. 
+
+# Make a copy 
+Make a copy of the dataset which you will use for editing. 
+```{r}
+indianapolis_use_of_force_copy <- indianapolis_use_of_force
+
+
+```
+
+# Explore the residentCondition variable (2 points) 
+Use at least 4 functions that give you information about the factor in question (fct_count for example.)
+```{r}
+fct_count(indianapolis_use_of_force_copy$residentCondition)
+sort(unique(indianapolis_use_of_force_copy$residentCondition))
+length(unique(indianapolis_use_of_force_copy$residentCondition))
+sum(is.na(indianapolis_use_of_force_copy$residentCondition))
+
+```
+
+Q: How many levels are currently in this variable?  
+A: 158
+
+# String editing (2 points)
+Convert this variable to lower and do at least one string replacement that will help remove some of the levels. Make sure the variable is in factor format when you are done. 
+```{r}
+indianapolis_use_of_force_copy <- indianapolis_use_of_force_copy %>% mutate(residentCondition = as.factor(str_to_lower(residentCondition)))
+
+indianapolis_use_of_force_copy <- indianapolis_use_of_force_copy %>% 
+  mutate(residentCondition = as.factor(str_replace_all(residentCondition, c("abrassion" = "abrasion", "abraison" = "abrasions", "abrasionss" = "abrasions"))))
+
+fct_count(indianapolis_use_of_force_copy$residentCondition)
+
+```
+
+Q: How many levels does the variable have now?  
+A: 136
+
+# Factor Collapse Looping (5 points)
+Make a vector which contains the names of all the levels. Create at least two other vectors, one for *taser injuries* and one for *abrasions* and come up with a loop that will pull the majority of the levels that pertain to those categories into the pertinent vectors and out of the vector with all the levels. (For examples of how to do this, see the Combining these techniques section of the finisher file. The str_detect() function may be of use.)
+
+Hint: It may be helpful to know that the words "prong", "pin" and "probe" relate to tasers, and that an abrasion is a medical term for a scrape or scratch or some sort.  
+```{r}
+# Make a vector with all remaining levels
+residentCon <- fct_unique(indianapolis_use_of_force_copy$residentCondition)
+
+# Taser vector
+taser <- vector("character")
+
+for (t in residentCon) {
+  if (str_detect(t, "tase") | str_detect(t, "taze")) {
+    taser <- append(taser, t)
+  }
+  else if (str_detect(t, "prong")){
+    taser <- append(taser, t)
+  }
+  else if (str_detect(t, "pin")){
+    taser <- append(taser, t)
+  }
+  else if (str_detect(t, "probe")){
+    taser <- append(taser, t)
+  }
+}
+#taser <- as.factor(taser)
+
+residentCon <- setdiff(residentCon, taser)
+
+# Abrasion vector
+abrasion <- vector("character")
+
+for (a in residentCon) {
+  if (str_detect(a, "abrasion") | str_detect(a, "abrasions")) {
+    abrasion <- append(abrasion, a)
+  }
+  else if (str_detect(a, "scrape")){
+    abrasion <- append(abrasion, a)
+  }
+  else if (str_detect(a, "scratch")){
+    abrasion <- append(abrasion, a)
+  }
+  else if (str_detect(a, "cut")){
+    abrasion <- append(abrasion, a)
+  }
+}
+
+#abrasion <- as.factor(abrasion)
+residentCon <- setdiff(residentCon, abrasion)
+
+fct_count(residentCon)
+
+```
+
+Use fct_collapse to collapse the levels you have created into taser and abrasion categories (and any other looped vector categories if you chose to make them). Note: *at this point do not collapse all other levels into an "other" category like we did in class*. Make sure to overwrite the existing residentCondition column
+```{r}
+indianapolis_use_of_force_fct <- indianapolis_use_of_force_copy %>% mutate(residentCondition = fct_collapse(residentCondition, taser = taser, abrasion = abrasion))
+
+```
+
+
+Use fct_count to see how the variable is broken down now. 
+```{r}
+fct_count(indianapolis_use_of_force_fct$residentCondition)
+
+```
+
+Q: How many levels do you have now?  
+A: 72
+
+# Factor Lump (3 points)
+Choose some method of lumping the other categories. Make sure you keep your taser and abrasion levels. Overwrite the current residentCondition variable.
+```{r}
+indianapolis_use_of_force_fct$residentCondition <- indianapolis_use_of_force_fct$residentCondition %>% 
+  fct_lump_min(min = 165) 
+```
+
+Now check fct_count.
+```{r}
+fct_count(indianapolis_use_of_force_fct$residentCondition)
+```
+
+Q: How many levels did you end up with?  
+A: 10
+
+Q: Which fct_lump method did you chose and why?  
+A: I chose fct_lump_min because I could set the minimum count to ensure I had both abrasion and taser in the resulting groups
+
+# Binary factor to logical (2 points)
+Create a new column called "compliant" that says TRUE when the disposition column says "In compliance" and FALSE if not. Make sure this is a logical column. Then remove the disposition column from the dataset. 
+```{r}
+indianapolis_use_of_force_fct <- indianapolis_use_of_force_fct %>% mutate(across(disposition, ~ifelse(.x == "In compliance", TRUE, FALSE)))
+
+indianapolis_use_of_force_fct <- indianapolis_use_of_force_fct %>% mutate(compliant = as.logical(disposition))
+
+indianapolis_use_of_force_fct$compliant[is.na(indianapolis_use_of_force_fct$compliant)] <- FALSE
+
+indianapolis_use_of_force_fct <- indianapolis_use_of_force_fct %>% select(!disposition)
+```
+
+# Ordinal variables (2 points) 
+There are no ordinal variables in this dataset, so we are going to pretend useOfForceReason is ordinal. Coerce this variable to an ordered factor and overwrite the original variable. Have the levels in the following order from lowest to highest: 
+
+- Fleeing
+- Non-Compliant
+- Resisting Arrest
+- Combative Suspect
+- Assaulting Officers(s)
+- Assaulting Citizen(s)
+
+Coerce the Canine Incident level into NAs. 
+
+```{r}
+# Again this isn't something we would do in a normal cleaning process because this is not ordinal!
+
+
+indianapolis_use_of_force_fct <- indianapolis_use_of_force_fct %>% mutate(across(c(useOfForceReason),  ~factor(.x, ordered = TRUE, levels = c("Fleeing", "Non-Compliant", "Resisting Arrest", "Combative Suspect", "Assaulting Officers(s)", "Assaulting Citizen(s)", NA))))
+
+```
+
+# Coercing to numerical (2 points)
+Coerce all logical and ordered factors to numerical. 
+```{r}
+indianapolis_use_of_force_fct <- indianapolis_use_of_force_fct %>% mutate_if(is.logical, as.numeric) %>% mutate_if(is.ordered, as.numeric)
+```
+
+# Dummy Coding (2 points)
+This time we are going to select specific columns for dummy coding (Or else we are going to end up with tons of columns!! (Check the documentation for dummy_cols() if you don't know how to select columns.)
+
+Make dummy columns for the division, residentCondition, residentRace, and officerRace columns. Remove the first dummy, ignore NAs and remove the columns used after creating the dummy columns.  
+```{r}
+indianapolis_use_of_force_fct <- indianapolis_use_of_force_fct %>% dummy_cols(select_columns = c("division", "residentCondition", "residentRace", "officerRace"), remove_first_dummy = TRUE, ignore_na = TRUE, remove_selected_columns = TRUE)
+
+```
+
+
+--End--
+
+# Optional feedback: 
+
+How hard was this assignment? Was it: too hard, too easy, or just right? 
+
+ANSWER: too hard
+
+Approximately how long did this assignment take you? 
+
+ANSWER: 6 hours
+
+
+

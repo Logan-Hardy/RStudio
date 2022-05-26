@@ -1,0 +1,363 @@
+---
+title: "Expand.2 In Class Finisher (Web Scraping)"
+author: "Your Name"
+date: "3/29/2022"
+output: html_document
+---
+
+# Introduction 
+Web scraping is one of the primary ways of accessing and saving data from the internet. The basic process is that we strip the html, css, and javascript code that is used to create a given webpage and separate out the information we need from it. 
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(rvest)
+library(polite)
+library(httr)
+library(jsonlite)
+```
+
+
+# Ethics
+Before we launch into webscraping, we need to acknowledge that just because we *can* webscrape almost anything on the internet, that doesn't mean we should. There are two questions we should ask before we scrape something. 1) Is it legal? 2) Is it nice? 
+
+## Legal 
+To check what you can webscrape off of a given website you need to check its /robots.txt page. You can find this by typing the name of the website and /robots.txt after. Try this with the BYU webpage https://www.byu.edu/robots.txt. Then try this with the yelp page. https://www.yelp.com/robots.txt
+
+Q: What can you NOT scrape off of the BYU page?  
+A: You can scrape everything, but it wants you to put in a ten second delay. 
+
+Q: What can you NOT scrape off of Yelp?  
+A: There are a lot of bots and pages that are not allowed. Check the "disallow" end points. 
+
+## Nice 
+Remember the BYU webpage asks you to wait ten seconds between webpages? This helps keep servers from crashing. The polite package helps us maintain good coding practices. We'll use it a little later on. 
+
+# Webscrape a page
+Now we are ready to webscrape our first page. We are using the rvest package. Check out the https://gradstudies.byu.edu/courses website. 
+```{r}
+# Create an object called "url" with the link to the website. 
+url <- "https://gradstudies.byu.edu/courses"
+
+# Then create an object called "courses" that passes the url object through the read_html() function
+courses <- read_html(url)
+
+# Look at the results 
+courses
+```
+
+Technically within this object is every piece of information we need-- but we need to find a way of extracting it otherwise this mass of text and code is not useful to us. 
+
+# Extract specific information 
+To extract a specific piece of information we need to figure out where in the webpage code it is being stored. This can be tricky. Luckily, Google Chrome provides a way to find out this information using the inspect element tool. 
+
+Let's try to find where the webpage stores information for the name of courses. 
+
+## With Inspect Page 
+On google chrome you can inspect a page by right clicking on it and choosing "inspect". If you do not see that option you can go to View > Developer > Inspect Elements. If you have something highlighted, it will show you where that element is kept. Every element should have either a class or an id. This can be used to find information. 
+
+## With Selector Gadget
+There is also a plug in that you can download on chrome called Selector Gadget. Type this into google and its free to download. Choose the magnifying class icon on the top of your page (you may have to select the ... in the top right corner to see it) and highlight whatever you want to find an id for. 
+```{r}
+# Create a new object called course_names that pipes our courses object into html_nodes with the correct id or class we found above and then into html_text. 
+(course_names <- courses %>% 
+  html_nodes(".course-row") %>% 
+  html_text())
+```
+ 
+# Text edit 
+Often once we isolate what we want we may still need to do some text editing. This is where our stringr skills come into play. The following code will split this variable into two different variables: the course abbreviation and the full name. 
+```{r}
+course_abbr <- course_names %>% 
+  str_split("  - ") %>% 
+  sapply("[[", 1)
+
+course_long <- course_names %>% 
+  str_split(" - ") %>% 
+  sapply("[[", 2)
+```
+
+# Forms
+Suppose we don't want just any old classes-- we want to see mpa classes. When you select the Romney School from the drop down menu, does it change the url? 
+
+If it doesn't change the url that means we have used a form and we need to find a way to replicate that process within R Studio. 
+
+First we need to find the form.
+```{r}
+# Use html_form to look at the forms. Then use .[[i]] to select the correct one. Name this object form
+form <- courses %>% 
+  html_form() %>% .[[3]]
+```
+
+Then we need to make sure all of the elements of the form are named (this is just a weird thing to avoid an error.)
+```{r}
+# Make sure all elements of that form are named
+form$fields[[2]]$name <- "button"
+```
+
+Now we need to fill out the form
+```{r}
+# Choose the correct value for form and put it into html_form_set() with its name. Call this selection.
+selection <- form %>%  html_form_set(cd = "60")
+```
+
+Then we need to submit the form.
+```{r}
+# Submit form
+response <- html_form_submit(selection)
+```
+
+This will generate a new html for us to read. 
+```{r}
+# Read new html
+mpa_courses <- read_html(response)
+```
+
+Now that we have that finished, we can repeat the steps we did previously to scrape class names.
+```{r}
+# Repeat steps above
+course_names <- mpa_courses %>% 
+  html_nodes(".course-row") %>% 
+  html_text()
+
+course_abbr <- course_names %>% 
+  str_split(" - ") %>% 
+  sapply("[[", 1) %>% 
+  str_trim()
+
+course_long <- course_names %>% 
+  str_split(" - ") %>% 
+  sapply("[[", 2)
+```
+
+# Incorporate new pages 
+Click on the link for our class. What do you notice about the url that is generated? Our class is the 22nd on this list. We have to find a way to replicate that url with the information we have in a way that can be repeated for other course names. 
+```{r}
+# String edit to make sure it is lowercase, collapsed with "-" and has the word "for" removed.
+data_sci <- paste(str_to_lower(str_replace_all(course_long[22], c(" " = "-", "-for" = ""))))
+
+# Create the correct url
+course_url <- paste0("https://gradstudies.byu.edu/course/", data_sci)
+```
+
+Now we are ready to use this as the new url. 
+```{r}
+# Read the html
+course_info <- read_html(course_url)
+```
+
+Now it's your turn. See if you can extract the following information: 
+```{r}
+# Extract the class description 
+description <- course_info %>% 
+  html_nodes(".course-title-description") %>% 
+  html_text()
+
+# Extract the course hours 
+hours <- course_info %>% 
+  html_nodes(".course-data-row:nth-child(1) .course-data-content") %>% 
+  html_text()
+
+# Extract Prereqs
+prerequisites <- course_info %>% 
+  html_nodes(".course-data-row:nth-child(2) .course-data-content") %>% 
+  html_text()
+
+# Extract semesters taught
+semesters <- course_info %>% 
+  html_nodes(".course-data-row:nth-child(3) .course-data-content") %>% 
+  html_text()
+
+# Extract course outcomes 
+outcomes <- course_info %>% 
+  html_nodes("#block-system-main li") %>% 
+  html_text() %>% 
+  paste(collapse = " ")
+```
+
+# Make a dataset
+That's great for one class. But ultimately we want to generate a dataset for all the classes. To do that we first have to make an empty dataset and then we will populate it with a loop.
+```{r}
+description <- vector("character", length = length(course_abbr))
+hours <- vector("character", length = length(course_abbr))
+prerequisites <- vector("character", length = length(course_abbr))
+semesters <- vector("character", length = length(course_abbr))
+outcomes <- vector("character", length = length(course_abbr))
+
+mpa_df <- data.frame(course_abbr, course_long, description, hours, prerequisites, semesters, outcomes)
+```
+
+# Loop through classes
+Now we will make a loop using the code we created before. We have to do a little more text editing to make the urls correct and some of them still may not work, so we will include an if statement to ignore urls that do not produce the outcome we want. 
+
+We will also be using the bow() and scrape() functions to not overwhelm the BYU servers. 
+```{r}
+for(i in seq_along(course_abbr)){
+  # Create the correct url
+  class <- paste(str_to_lower(str_replace_all(course_long[i], c(" " = "-", "-for-" = "-", "-in-" = "-", "-of-" = "-"))))
+  # Bow and scrape functions will add delays as we scrape. 
+  url <- bow(paste0("https://gradstudies.byu.edu/course/", class))
+  course_info <- scrape(url)
+  if(!is.null(course_info)) {
+    mpa_df[i, 3] <- course_info %>% 
+        html_nodes(".course-title-description") %>% 
+        html_text()
+  
+    mpa_df[i, 4] <- course_info %>% 
+    html_nodes(".course-data-row:nth-child(1) .course-data-content") %>% 
+    html_text()
+    
+    mpa_df[i, 5] <- course_info %>% 
+    html_nodes(".course-data-row:nth-child(2) .course-data-content") %>% 
+    html_text()
+    
+    mpa_df[i, 6] <- course_info %>% 
+    html_nodes(".course-data-row:nth-child(3) .course-data-content") %>% 
+    html_text()
+    
+    mpa_df[i, 7] <- course_info %>% 
+    html_nodes("#block-system-main li") %>% 
+    html_text() %>% 
+    paste(collapse = " ")
+  }
+}
+
+mpa_df
+```
+
+# Scraping from attribute 
+So far all of the information we have been able to pull out using "html_text()". But sometimes we have information that is not stored as text, rather it is stored in another attribute. For this we need to use the html_attr() function. 
+
+Extract the url for the background photo on the main courses page. 
+```{r}
+courses %>% 
+  html_nodes(".background-cover-image") %>% 
+  html_attr("style") %>% 
+  str_extract_all("http.*") %>% 
+  str_split("\\)") %>% 
+  .[[1]] %>% 
+  .[1]
+```
+
+# APIs 
+While webscraping has some major benefits, (you can fully customize the code to scrape info exactly how you want it) it also can be time consuming to write up all that code. This is where APIs come in handy.
+
+APIs stand for Application Programming Interface. They were built to communicate directly with programs and servers so that information could automatically pass between them without human interaction. There are lots of types of APIs that do various functions, but they are often built to provide information to data scientists. 
+
+APIs can be accessed with the httr (which pulls the data) and jsonlite (which puts it into a useful format) packages. The primary functions are GET(), fromJSON(), and rawToChar(). 
+
+Here are some APIs:
+
+This is a weather forcast API. The url accepts a latitude and longitude and will output a dataset.
+```{r}
+request <- GET("http://www.7timer.info/bin/api.pl?lon=111.658&lat=40.233&product=astro&output=json")
+data <- fromJSON(rawToChar(request$content))
+```
+
+This is an api to guess someone's age based on their name. 
+```{r}
+request <- GET("https://api.agify.io?name=laurel")
+(data <- fromJSON(rawToChar(request$content)))
+
+```
+
+This one tells you activities to do when you are bored. 
+```{r}
+request <- GET("https://www.boredapi.com/api/activity")
+(data <- fromJSON(rawToChar(request$content)))
+```
+
+This one tells jokes. 
+```{r}
+request <- GET("https://v2.jokeapi.dev/joke/Any?safe-mode")
+(data <- fromJSON(rawToChar(request$content)))
+```
+
+## Company APIs
+While these are bundles of fun, they are not the most useful APIs on the internet, and they are extremely simple. Many big companies have APIs that they build to monitor the data that is being pulled off their website. Some of these are still free (some are not!) but almost all require some sort of authentication to use. Check out yelp's API below. 
+
+https://www.yelp.com/developers/documentation/v3
+
+Learning how to pull information off of these APIs and put in your authentification is outside the scope of this class, but here is an example for the Facebook API. (Full disclosure... I haven't actually watched this!)
+
+https://www.youtube.com/watch?v=MpLCBEdhg3Y&ab_channel=API-University
+
+# Practice 
+Let's do some more practice. Use the url below to scrape off the names of the dining locations and the picture url that goes with them. (These may not turn out exactly how you think... Can you use string editing and other cleaning techniques to clean this information?)
+
+https://dining.byu.edu/
+```{r}
+url <- "https://dining.byu.edu/"
+locations <- read_html(url)
+
+# Long way
+names <- locations %>% 
+  html_nodes(".list-items-10 .Link") %>% 
+  html_text() 
+
+names_clean <- vector("character")
+
+for(i in seq_along(names)){
+  if(names[i] != "" & names[i] != "Retail Locations" & names[i] != "Other Areas") {
+    names_clean[i] <- names[i]
+  }
+}
+
+names_clean <- na.omit(names_clean)
+
+# OR
+names <- locations %>% 
+  html_nodes(".promo-title .Link") %>% 
+  html_text() %>% 
+  .[1:10]
+
+photo <- locations %>%   
+  html_nodes("picture") %>% 
+  as.character() %>% 
+  str_extract_all("http.*") %>% 
+  str_split("jpg") %>% 
+  sapply("[[", 1) %>% 
+  paste0("jpg") %>% 
+  .[2:11]
+
+```
+
+Then from this creameries page (https://dining.byu.edu/creameries), loop through each creamery's page and scrape the address and phone number into a small dataset with the creamery's name as the first column. Use the polite package. 
+```{r}
+url <- "https://dining.byu.edu/creameries"
+
+creamery_names <- read_html(url) %>% 
+  html_nodes(".promo-title .Link") %>% 
+  html_text()
+
+urls <- creamery_names %>% 
+  str_to_lower() %>% 
+  str_replace_all(" ", "-") %>% 
+  paste0("https://dining.byu.edu/", .)
+
+address <- vector("character", length = length(urls))
+phone_number <- vector("character", length = length(urls))
+
+creamery_df <- data.frame(creamery_names, address, phone_number)
+for(i in seq_along(urls)){
+  url <- bow(urls[i])
+  cream_info <- scrape(url)
+  creamery_df[i, 2] <- cream_info %>% 
+    html_nodes("#richtext-contact+ .container-fixed p+ p") %>% 
+    html_text() %>% 
+    str_trim() %>% 
+    substr(1, nchar(.) - 12) %>% 
+    str_trim()
+  creamery_df[i, 3] <- cream_info %>% 
+    html_nodes("#richtext-contact+ .container-fixed p+ p") %>% 
+    html_text() %>% 
+    str_trim() %>% 
+    substr(nchar(.) - 12 + 1, nchar(.))
+}
+```
+
+Bonus: Try to scrape one menu item from each creamery.
+```{r}
+
+```
+

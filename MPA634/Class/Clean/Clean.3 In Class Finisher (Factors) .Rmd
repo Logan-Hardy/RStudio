@@ -1,0 +1,399 @@
+---
+title: "Clean.3 In Class Finisher (Factors)"
+author: "Your Name"
+date: "1/29/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, 
+                      message = FALSE)
+library(tidyverse)
+library(fastDummies)
+```
+
+# Import Data
+Import the mental health in tech survey (we have used this dataset before.) Use mutate_if and readr.
+```{r}
+mental_health <- read_csv("~/Desktop/R Working Directory/Datasets for playing/misc data/mental_health_tech_survey.csv") %>% mutate_if(is.character, as.factor)
+```
+
+# Make a copy
+Make a copy of the dataset. Call it mental_health_fct
+```{r}
+mental_health_fct <- mental_health
+```
+
+# Review
+We have used several functions before to investigate factors. Run the functions below to remember what they do.
+```{r}
+sort(unique(mental_health_fct$Gender))
+length(unique(mental_health_fct$Gender))
+fct_count(mental_health_fct$Gender, sort = TRUE)
+sum(is.na(mental_health_fct$Gender))
+```
+
+Here is another function that helps us explore our factor variable. 
+```{r}
+# This is the forcats version of sort(unique())
+fct_unique(mental_health_fct$Gender)
+```
+# Using string editing (lowercase)
+Our task is to turn this complicated factor variable into something more simple and accurate. One way we can do this is by using some of our string editing skills. 
+```{r}
+# Make this variable into only lowercase. This will coerce it to a character vector, so coerce it back.
+mental_health_fct <- mental_health_fct %>% mutate(Gender = as.factor(str_to_lower(Gender)))
+
+# Now use fct_unique to print out the levels. 
+fct_unique(mental_health_fct$Gender)
+```
+
+Q: How many levels did we start with? How many do we have now?  
+A: Started with 47, now have 41
+
+Let's do some more text editing. Let's do a str_replace of quite a few typos we see here. 
+
+- (cis) or cis should be removed (cis means gender matches birth gender)
+- make, mail, malr, msle, man, and maile can all be changed to male
+- woman can be female
+```{r}
+# Remember to convert to factor once again. Note, the order of these matters! 
+mental_health_fct <- mental_health_fct %>% 
+  mutate(Gender = as.factor(str_replace_all(Gender, c("(cis)" = "", 
+                                                      "cis" = "", 
+                                                      "make" = "male",
+                                                      "maile" = "male",
+                                                      "malr" = "male",
+                                                      "woman" = "female",
+                                                      "msle" = "male",
+                                                      "man" = "male",
+                                                      "mail" = "male"))))
+
+# Check to see the levels again with fct_unique
+fct_unique(mental_health_fct$Gender)
+```
+
+Q: How many levels do we have now?  
+A: 31
+
+# Factor Collapse
+At this point we could either do some more text editing to get these to combine, or we could start making vectors of each level that we want. 
+```{r}
+# Make three vectors: female, male, and other. Put in each the levels that should be combined. 
+female <- c(" female", "-female/femme", "f", "female", "female ()")
+male <- c(" male", "guy (-ish) ^_^", "m", "mal", "male", "male ()", "male leaning androgynous", "male-ish", "ostensibly male, unsure what that really means", "something kinda male?") 
+other <- c("agender", "all", "androgyne", "enby", "fluid", "neuter", "non-binary", "queer", "queer/she/they", "trans female", "trans-female", "genderqueer", "female (trans)")
+
+# See how fct_collapse can be used with these vectors. 
+fct_collapse(mental_health_fct$Gender, 
+             female = female, 
+             male = male, 
+             other = other) %>% head(n = 100)
+```
+
+Q: Should trans women and men be put into male and female categories, or should they be in an "other" category?  
+A: There isn't one right answer to this question. But look at the purpose of the survey. Usually a survey like this is designed to see if every has equal access to services. Since trans people are more likely to be discriminated against than other groups, it makes sense to put them in an "other" category so we can see if those in the other category are being treated differently than cis males and females. 
+
+Q: What about values like "nah", and "a little about you" and "p"? Should they be other or NA?  
+A: They should be NA because we can't actually tell anything about those values. It could be a cis woman writing "nah" and if we categorize it as "other" it could seem like she is LGBTQ.
+
+```{r}
+# Now actually change the factor variable with mutate
+mental_health_fct <- mental_health_fct %>% mutate(Gender = fct_collapse(Gender, 
+             female = female, 
+             male = male, 
+             other = other))
+
+# Check the results with fct_unique
+fct_unique(mental_health_fct$Gender)
+```
+
+What about those last few options that should be NA?
+```{r}
+# Inside the factor variable there is a parameter that allows you to put levels you do not want as NAs. Try the following code.
+factor(mental_health_fct$Gender, exclude = c("p", "nah", "a little about you")) %>% fct_count
+
+# Now use the factor function to permanently recode the variable. 
+mental_health_fct <- mental_health_fct %>% mutate(Gender = factor(Gender, exclude = c("p", "nah", "a little about you")))
+```
+
+Let's check to see how our factor variable ended up. Run fct_count on the gender variable. 
+```{r}
+fct_count(mental_health_fct$Gender)
+```
+
+# Factor Lump
+Even after all the text editing we did it takes a long time to copy and paste all of those values! fct_lump is a more efficient function. (But usually when coding, efficiency comes with trade offs!)
+
+Let's see how it works. Using the original dataset, run the code below. 
+```{r}
+# Adjust the code below with the gender variable 
+mental_health$Gender %>% 
+  fct_lump(n = 4) %>% 
+  fct_count()
+```
+
+
+Q: What happened?  
+A: We supplied a number of levels to create (4) and it lumped everything else into an "other" category. 
+
+```{r}
+# Adjust the code below for the gender variable
+mental_health$Gender %>% 
+  fct_lump_min(min = 50) %>% 
+  fct_count()
+```
+
+Q: What happened this time? 
+A: We made a cut off of how many times a group needed to be present to be counted as a level, otherwise it was lumped into other. 
+
+```{r}
+# Adjust the code below for the gender variable
+mental_health$Gender %>% 
+  fct_lump(prop = .05) %>% 
+  fct_count()
+```
+
+Q: What happened this time? 
+A: This uses a proportion. Keeps levels that appear more than some proportion of the time. 
+
+Compare these tables with the factor we created with in the mental_health_fct dataset. 
+```{r}
+fct_count(mental_health_fct$Gender)
+```
+
+Q: Which one is more accurate in this case?  
+A: The fct_collapse version 
+
+fct_lump often makes more sense in cases where we are confident that there aren't tons of overlapping levels, but where some levels are really common and others rare. 
+```{r}
+# Use the fct_lump function and mutate to keep the most common 4 countries, and any state that is listed more than 30 times. This code should override the existing mental_health_fct dataset 
+mental_health_fct <- mental_health_fct %>% mutate(Country = fct_lump(Country, n = 4), 
+                                                  state = fct_lump_min(state, min = 30))
+# Use fct_count to look at the distribution of these two columns. 
+fct_count(mental_health_fct$Country)
+fct_count(mental_health_fct$state)
+```
+
+
+# Combining these techniques 
+So how can we use the best of both of these options? We use a bit of each. 
+
+```{r}
+# Make another copy of the original dataset, named mental_health_fct2
+mental_health_fct2 <- mental_health
+
+# One of the easiest things we can do is take care of the case problem of this factor, so run the following code. 
+mental_health_fct2 <- mental_health_fct2 %>% mutate(Gender = as.factor(str_to_lower(Gender)))
+
+# Also just removing "cis" in its variations and special characters will help as well. (You could do this in the same mutate function as above.)
+mental_health_fct2 <- mental_health_fct2 %>% mutate(Gender = as.factor(
+  str_replace_all(Gender, c("[:punct:]" = "",
+                            "cis " = "", 
+                            "cis" = ""))))
+ 
+                                                     
+# Now make a vector of the unique values in the Gender variable. 
+gender <- fct_unique(mental_health_fct2$Gender)
+```
+
+Now we are going to create several loops that go through this variable and pull some of the values out into other vectors. The question we need to ask ourselves is: What are patterns that each level has in common?
+```{r}
+# One thing is that a lot of the male levels start with m. Let's pull all of these into a vector. 
+
+# Create an empty male vector 
+male <- vector("character")
+
+# Check out the substring function 
+substring("duck", 2,3)
+
+# Use the substring function to make a loop that appends any value that starts with m into the male vector
+for(g in gender) {
+  if(substring(g, 1,1) == "m") {
+    male <- append(male, g)
+  }
+}
+
+# See if you can tell what the code below does
+setdiff(1:10, 2:4)
+
+# Use that function to override the gender vector with only values that aren't in male. 
+gender <- setdiff(gender, male)
+
+# Print out the gender variable and male variables. 
+gender 
+male
+
+# Do the same for the female vector. This time add make sure that fluid doesn't get included.
+female <- vector("character")
+for(g in gender) {
+  if(substring(g, 1,1) == "f" & g != "fluid") {
+    female <- append(female, g)
+  }
+}
+gender <- setdiff(gender, female)
+gender
+female
+
+# If we accidentally include a value we can exclude it with the following code and put it back in the gender vector. 
+gender <- c(gender, female[6])
+female <- female[-6]
+```
+
+Q: Didn't we say we don't want to grow vectors in loops?  
+A: Yeah... we did... but in this case we don't know how long the loop is going to be so we can't help it really. 
+
+At this point we have almost all the same values that we had before. This may not seem like a lot less work, but imagine that instead of 41 levels long, your factor variable were 2000 levels long. This would really speed things up. 
+```{r}
+# Now run our code to revalue NAs. 
+mental_health_fct2 <- mental_health_fct2 %>% mutate(Gender = factor(Gender, exclude = c("p", "nah", "a little about you")))
+
+# Now we can use fct_collapse to collapse these variables. We can use the gender vector as our "other" vector. It's not perfect, but it's certainly close. 
+mental_health_fct2 <- mental_health_fct2 %>% mutate(Gender = fct_collapse(Gender, 
+             female = female, 
+             male = male, 
+             Gender = gender))
+
+# Run fct_count on each dataset to compare the results 
+fct_count(mental_health_fct2$Gender)
+fct_count(mental_health_fct$Gender)
+
+# One more piece of advice: We could also use str_detect() to check the existence of a string within another as well as just loop through the first letter of each word in the gender vector. Here is an example. 
+trans <- vector("character")
+for(g in gender){
+  if(str_detect(g, "trans")){
+    trans <- append(trans, g)
+  }
+}
+
+gender <- setdiff(gender, trans)
+trans
+```
+
+Takeaway: Do your best to make reasonable vectors that hold as many correct levels as you can, then collapse them with fct_collapse. If there are any else, go ahead and use the fct_lump function. 
+
+
+# Ordinal Data 
+Ordinal data may also need to be lumped or collapsed just like non-ordered factors. If there is cleaning up to do, do that first. 
+
+Once you have made sure that you have combined all the levels that make sense to combine, you need to tell R what order to put the levels in.  
+```{r}
+# Run the code below to create make the no_employees variable into an ordered factor. 
+mental_health_fct <- mental_health_fct %>% 
+  mutate(no_employees = factor(no_employees, ordered = TRUE, levels = c("1-5", "6-25", "26-100", "100-500", "500-1000", "More than 1000")))
+
+# Do the same for the leave column. This time there is a level which cannot be ordered with the others. This will need to be excluded. 
+mental_health_fct <- mental_health_fct %>% 
+  mutate(leave = factor(leave, ordered = TRUE, levels = c("Very difficult", "Somewhat difficult", "Somewhat easy", "Very easy"), exclude = "Don't know"))
+
+# Finally, run the following code for the work_interfere column. 
+mental_health_fct <- mental_health_fct %>% 
+  mutate(work_interfere = factor(work_interfere, ordered = TRUE, levels = c("Never", "Rarely", "Sometimes", "Often")))
+
+# (Again, these are all pieces of code we could run in the same mutate function. )
+```
+
+# Binary columns 
+For columns that are binary and coded the same way, we can recode a bunch of them with a mutate and ifelse statement. 
+```{r}
+# Put the column names of binary factor variables into the empty vector below. 
+mental_health_fct <- mental_health_fct %>% 
+  mutate(across(c(self_employed, family_history, treatment, remote_work, tech_company, obs_consequence), ~ifelse(.x == "Yes", TRUE, FALSE))) 
+```
+
+## Binary or not? 
+These 2 level columns are easy to peg as binary columns. But what about some of these other columns? 
+
+Q: Is the benefits column binary or not?  
+A: It depends on what information you are trying to get out of this measure. Does it matter to your analysis whether or not the person knows what benefits are available to them? If so, then this is not a binary variable. Instead, "Don't know" becomes a meaningful level in and of itself and it would be inappropriate to turn this into a logical variable. If this isn't useful information to you, then I would recode "Don't know" as NA and then turn this into a logical variable. 
+
+Q: The coworkers variable asks if you can go discuss mental health issues with your coworkers for help. The options are No, Some of them, and Yes. Is this variable binary? 
+A:  This looks most like an ordinal variable actually. 
+
+Q: The mental_health_consequences variable ask respondents if they think talking about mental health with their employer would have negative consequences. The options are "Yes", "No", and "Maybe". Is this binary? 
+A: This could go either way. If you think that the uncertainty comes because the person feels conflicted about the answer, maybe this could be viewed as an ordinal variable with maybe in the middle. If you think this more shows that the person has no idea, then this could be treated as a binary variable with maybe as NAs or a non-ordered variable with three levels. 
+
+In all of these scenarios, how you choose to recode or revalue the levels should be clearly stated in your methodology. 
+
+# Recoding 
+Sometimes you just want to tweak how multiple levels are coded, but you don't want to collapse several levels together. You could potentially do this how we did with the str_replace function earlier, but it's also worth knowing the fct_recode function.
+```{r}
+# Run and look at the code below. 
+fct_recode(mental_health_fct$benefits, 
+            false = "No", 
+            true = "Yes", 
+            NULL = "Don't know") %>% as.logical() %>% head(n = 100)
+
+# Here is the function within mutate applied to multiple columns. Notice we added "Not Sure" as another null option. 
+mental_health_fct <- mental_health_fct %>% 
+  mutate(across(c(benefits, wellness_program, seek_help, anonymity, mental_vs_physical, care_options), 
+         ~fct_recode(.x, false = "No", 
+            true = "Yes", 
+            NULL = "Don't know", 
+            NULL = "Not Sure") %>% as.logical()))
+```
+
+At this point we have adjusted almost every column. Run the last code chunk so that we have adjusted almost every column. 
+```{r}
+mental_health_fct <- 
+mental_health_fct %>% 
+  mutate(across(c(mental_health_consequence, 
+                  phys_health_consequence, 
+                  mental_health_interview, 
+                  phys_health_interview), 
+         ~factor(.x, ordered = TRUE, levels = c("No", "Maybe", "Yes")))) %>% 
+  mutate(across(c(coworkers, 
+                  supervisor), 
+         ~factor(.x, ordered = TRUE, levels = c("No", "Some of them", "Yes"))))
+```
+
+
+# Coercing to numerical 
+At this moment, our mental_health_fct dataset could be considered clean. There is one unstructured column, comments, that we could work to get into a factor format through some of the techniques we used today, or run some text analysis on it like we did last time, but there aren't that many responses to it so it doesn't strike me as an important thing to do. 
+So there you have it-- factors that have all been cleaned. This is totally sufficient for many types of analysis. Unfortunately, some type of analysis (like linear regression) require completely numerical data. Some of these variable types (ordinal factors and logical variables) can be easily coerced to numerical. In fact, that's why we chose these data types. 
+
+Coerce all the logical and ordered factors into nu
+
+Create one final dataset copy, this one of mental_health_fct. Call it mental_health_num.
+```{r}
+mental_health_num <- mental_health_fct
+
+# You may not realize, but you know this code well already! We use it almost every time we import. 
+mental_health_num <- 
+mental_health_num %>% mutate_if(is.logical, as.numeric) %>% 
+                      mutate_if(is.ordered, as.numeric)
+```
+
+
+# Dummy Coding 
+That works great for those data types, but what about factors? Here is where dummy coding comes in. 
+
+(First of all we should note that this wording is falling out of fashion.)
+
+Look at the documentation for the dummy_cols function from the fastDummies package
+```{r}
+?dummy_cols
+```
+
+Create dummy columns for this dataset. Make sure you are *not* including the comment column, that you remove one dummy for each variable, that you ignore nas, and that you do not include the old columns in the finished product.  
+```{r}
+mental_health_num <- 
+mental_health_num %>% select(-comments) %>% 
+  dummy_cols(remove_first_dummy = TRUE, ignore_na = TRUE, remove_selected_columns = TRUE)
+```
+
+# Practice 
+Import the fatal_police_shootings dataset that we have used before in this class. 
+```{r}
+fatal_police_shootings <- read_csv("~/Desktop/R Working Directory/Datasets for playing/Police Data/fatal_police_shootings.csv") %>% mutate_if(is.character, as.factor)
+```
+Explore the dataset in the console. How would you start simplifying the "armed" column? There is not just one way to do this. Try to see how far you can get with it using all the string editing, factor collapse, and factor lump skills we practiced earlier. 
+```{r}
+
+```
+
+If you finish, practice using fct_lump on the city and state columns. 
+```{r}
+
+```
+

@@ -1,0 +1,172 @@
+---
+title: "HW.Predict.4"
+author: "Logan Hardy"
+date: "3/28/2022"
+output: html_document
+---
+
+25 points (20 for this assignment, 5 for being on time)
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(mclust)
+library(corrplot)
+
+```
+
+# Import 
+Import the Life Expectancy data. Filter so we are only looking at the latest year of the data.
+```{r}
+Life_Expectancy_Data <- read_csv("../../Data/Life Expectancy Data.csv") %>% mutate_if(is.character, as.factor) %>% filter(Year == max(Year))
+
+```
+
+Now each observation represents one country, and we can run an analysis to see if we can find patterns in countries. 
+
+# Cleaning
+Since we have cleaned this dataset numerous times, go ahead and run the code chunk below. This will produce a fairly cleaned, scaled version of our data. 
+```{r}
+life_exp_clean <- Life_Expectancy_Data %>% 
+  # Removing large factor 
+  select(-Country, -Year) %>% 
+  # Creating dummy columns
+  fastDummies::dummy_cols(remove_first_dummy = TRUE, 
+                          ignore_na = TRUE, 
+                          remove_selected_columns = TRUE) %>% 
+  # Replacing missing values with median
+  mutate(across(where(is.numeric), ~replace_na(.x, median(.x, na.rm = TRUE)))) %>% 
+  # Scaling the data with z score standardization
+  scale() %>% 
+  as_tibble()
+
+colnames(life_exp_clean) <- str_replace_all(colnames(life_exp_clean), 
+                                            c(" " = "_", 
+                                              "-" = "_", 
+                                              "/" = "_"))
+```
+
+# Visualization (2 points)
+Let's see initially if we can see any patterns in our data. Make a correlation matrix of just the first ten columns. 
+```{r, fig.width = 7}
+# plotted correlation matrix 
+plot(life_exp_clean[1:10])
+
+# colored correlation matrix 
+# corr_matrix <- cor(life_ exp_clean[1:10])
+# corrplot(corr_matrix, method="color", type="lower", tl.cex = .8)
+
+```
+
+Q: Please identify two scatterplots that appear to show clustered data. Describe what you see, how many clusters you can identify, and what two variables are involved for each.  
+A: Hepatitis_B and BMI: I see three main clusters that have small gaps between them. Each cluster seems to have a few outliers.  
+   BMI and Adult_Mortality: Here I see three clusters. Two of them are about the same size while the third is smaller.  
+
+# K-means Clustering (8 points)
+Generate a sum of squares graph to determine the number of clusters to try for our k-means model.
+```{r}
+wss <- (nrow(life_exp_clean)-1)*sum(apply(life_exp_clean,2,var))
+for (i in 2:15) wss[i] <- sum(kmeans(life_exp_clean, centers=i)$withinss)
+
+plot(1:15, wss, type="b", xlab="Number of Clusters",
+  ylab="Within groups sum of squares")
+
+
+```
+
+Q: Using any method discussed in class, please identify what you think would be a good number of clusters for our k-means. How did you come to that conclusion?  
+A: 4; There is an elbow here.  So there is a sharp decline from 3 to 4 then not much of a difference from 4 to 5
+
+Run the k-means with the number of clusters that you picked. Print out the results. 
+```{r}
+(fit <- kmeans(life_exp_clean, 4))
+
+
+```
+
+Q: How many observations are in each cluster?  
+A: 36, 84, 43, 20
+
+Q: How much of the variation is explained by these clusters?  
+A: 36.4%
+
+Q: Which group shows the highest consumption of alcohol?  
+A: group 1
+
+Create a new dataset with the cluster assignments as a new variable. 
+```{r}
+life_exp_clusters <- life_exp_clean %>% mutate(clusters = fit$cluster)
+
+```
+
+Plot the first ten variables in a correlation matrix, this time coloring by cluster. 
+```{r, fig.width = 7}
+plot(life_exp_clusters[1:10], col = life_exp_clusters$clusters)
+
+
+```
+
+Q: Did the model identify the same clusters that you did when you looked at the correlation matrix before?  
+A: No, not really. It used an additional cluster which may have thrown it off for those specific scatter plots.  It kept two the same distinctions that I saw earlier for the most part, while the other grouping is composed of multiple clusters.  
+
+Q: How mixed up do the clusters appear?  
+A: 3/5.  Some of the scatterplots look great, while others look pretty mixed up. 
+
+# Hierarchical Clustering (5 points)
+
+Create a plot of the hierarchy of all the countries. Include the actual labels of the countries by adding a parameter of labels = original_df$Country to your plot function. 
+```{r, fig.width = 25}
+# Make a distance matrix 
+d <- dist(life_exp_clusters)
+
+fitH <- hclust(d)
+plot(fitH, labels=Life_Expectancy_Data$Country) 
+
+```
+
+Q: According to this hierarchy, what country is the most similar to the United States in these metrics? (You may have to open this up and zoom in to be able to tell.)  
+A:  Czechia
+
+Cut the tree using the same number of clusters that you had before and make a new correlation matrix of hte first ten variables colored by these clusters. 
+```{r}
+clusters <- cutree(fitH, k = 4) 
+plot(life_exp_clusters[1:10], col = clusters)
+
+```
+
+Q: Do you think this did a better or worse job clustering the data than k means?  
+A: Much worse.  It looks as though everything is part of one cluster, then there are a few outlier clusters.  Most scatterplots show just one color
+
+# Model Clustering (5 points)
+Run your dataset through the Mclust function and print out the result. 
+```{r}
+(fitM <- Mclust(life_exp_clean))
+
+
+```
+
+Q: How many clusters did it choose?  
+A: 2
+
+Q: What model did it choose?  
+A: EEV
+
+Run the following code chunk and choose 1 in your console to output a BIC graph. (Then you will have to manually stop the code chunk from running anymore.)
+```{r, eval = FALSE}
+plot(fitM)
+```
+
+Q: Which other algorithm was closest in terms of reducing uncertainty? How many clusters would that have chosen?  
+A: VEV, 3 
+
+--End-- 
+
+# Optional feedback: 
+
+How hard was this assignment? Was it: too hard, too easy, or just right? 
+
+ANSWER: Just right
+
+Approximately how long did this assignment take you? 
+
+ANSWER: 2 hours

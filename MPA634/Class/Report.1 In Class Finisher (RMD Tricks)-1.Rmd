@@ -1,0 +1,184 @@
+---
+title: "Report.1 In Class Finisher (RMD Tricks)"
+author: "Laurel Galli-Graves"
+date: "`r format(Sys.time(), '%B %m, %Y')`"
+output:
+  word_document: 
+    toc: yes
+  html_document: 
+    toc: yes
+    toc_float: yes
+---
+
+# YAML
+
+1.  Change the date to be the knitting date always with "`r format(Sys.time(), '%B %m, %Y')`"
+
+2.  Table of Contents
+
+-   First look at the table of contents shown in RStudio
+-   Look at the code guide
+-   Knit the doc and look at the format
+-   Now make a table of contents by replacing output: html_Document with the following: output: html_document: toc: yes Knit the doc and look at the results.
+-   Make it a floating toc by adding toc_float: yes below it.
+
+# Adjusting the set up chunk
+
+**Remove** messages, warnings, and code.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE,
+                      warning = FALSE, 
+                      message = FALSE
+                      )
+library(tidyverse)
+library(ggthemes)
+library(pander)
+theme_new <-  ggthemes::theme_fivethirtyeight(base_size=12#, base_family="Open Sans"
+                                              ) %+replace% theme(panel.grid.major.y = element_line(colour = "grey80", size = 0.25),  panel.grid.major.x = element_blank(), panel.background = element_rect(fill = "white"), plot.background = element_rect(fill = "white"), legend.background = element_rect(fill = "white"))
+
+```
+
+Q: How do you know what packages to include?  
+A: Always include tidyverse, then import whatever package is at the top of the finisher file. If you hit a "function not found" google the name of the function and usually there will be the name of the package in the top left corner. 
+
+Q: What does include = FALSE do?  
+A: Runs the code but hides both output and code.
+
+# Heading Refresher
+
+## Subheading
+
+Fix the subheading above so it shows up correctly.
+
+### Sub Sub Heading
+
+# Spacing
+
+If you would like text on two lines make sure there are two spaces after.  
+Like this.
+
+
+# Aspect Ratio, Alignment, and Captions
+
+Look at the knitted version. Then add dpi= 250, fig.width=7, fig.height=7 to the code chunk header and knit again. Adding fig.cap with add a caption and fig.align can be changed to 'center', 'left' or 'right'
+
+```{r, dpi= 250, fig.width=7, fig.height=7, fig.cap = "*Fig.1 Diamonds Graph*", fig.align='center'}
+diamonds %>% 
+      ggplot(aes(x = color, fill = color)) +
+      geom_bar() +
+      facet_grid(clarity ~ cut) +
+      labs(title = "Title", 
+          subtitle = "Subtitle") + 
+      theme_new + theme(legend.position = "right", 
+                        legend.direction = "vertical", 
+                        legend.key.size = unit(.3, "cm"))
+```
+
+# Run all above and below.
+
+Find these buttons and play with them.
+
+# Visual Markdown Editor
+
+Find this buttons and play with them.
+
+# Knitting to doc versus html
+ 
+Q: How do you knit to a word doc?  
+A: You just click the word doc knit button. But you can't have any interactive features in your file. 
+
+Q: Can you edit a knitted word doc?  
+A: Yes you can, but it will be overwritten by knitting again. I would recommend only doing this as a very last step. 
+
+# How to write good comments 
+
+Add comments to the following code chunk
+```{r}
+# Creating a new copy of the diamonds dataset
+diamonds1 <- diamonds
+
+# Creating a table 
+diamonds1 %>% 
+  filter(table >= 55) %>% # that shows just observations with a table of greater than 55
+  group_by(color) %>% 
+  summarize(med_price = median(price)) %>% # And the median price for each color
+  arrange(desc(med_price)) %>% 
+  head(5) # Only outputting the top 5
+
+# Overwriting the table variable to be integers
+diamonds1 <- diamonds1 %>% mutate(table = round(table))
+```
+
+# Tables 
+Take a look at the gross output of the code chunk above. We can use the pander package to make this a lot more appealing in our knitted file.  
+```{r}
+diamonds1 %>% 
+  filter(table >= 55) %>% # that shows just observations with a table of greater than 55
+  group_by(color) %>% 
+  summarize(`median price` = median(price)) %>% # And the median price for each color
+  arrange(desc(`median price`)) %>% 
+  head(5) %>% # Only outputting the top 5 
+  pander()
+```
+
+You will be outputting 1 summarization table in your knitted report. 
+
+# Inline code
+
+Put the mean in the following text.
+
+The mean of the price variable is `r mean(diamonds$price, na.rm = TRUE)`.
+
+# Debugging 
+Uncomment the code below and try to debug it.  
+```{r}
+diamonds1 %>% 
+  mutate(price_and_color = paste0("This diamond of color ", str_to_lower(color), " is $", format(round(price), big.mark = ",")),
+         table = round(table)) %>% head() %>% pander()
+```
+
+The following tips may help: 
+
+1. Little red x 
+2. Rainbow parentheses 
+3. Stack overflow 
+4. eval = FALSE
+
+
+# Projects
+Create a dummy project. 
+```{r}
+getwd()
+```
+
+Q: Why would you use a relative or absolute file path?  
+A: If you are ever sharing code with someone it is a good idea to have it in a project, and then use relative file paths within the project so that they can run the exact same code on their computer without having to edit. 
+
+# RStudio Hygiene 
+
+1. Clean the global environment regularly
+2. Restart whenever you have a new session. (OR when you have a code chunk that was working before but isn't now!)
+3. Create a new session if you are working on multiple different projects at the same time. 
+
+
+# Practice 
+How would I run this code in my markdown file but make sure it doesn't output anything? 
+```{r, include = FALSE}
+summary(diamonds)
+```
+
+How would I keep it from running at all? 
+```{r, eval = FALSE}
+summary(diamonds)
+```
+
+How would I run it but hide the code? 
+```{r, echo = FALSE}
+summary(diamonds)
+```
+
+How would I hide any warnings that come in the code? 
+```{r, warning = FALSE}
+summary(diamonds)
+```

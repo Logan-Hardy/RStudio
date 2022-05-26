@@ -1,0 +1,134 @@
+---
+title: "HW.Clean.4"
+author: "Logan Hardy"
+date: "2/23/2022"
+output: html_document
+---
+
+20 points (15 for this assignment, 5 for being on time)
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      message = FALSE,
+                      warning = FALSE)
+library(tidyverse)
+```
+
+# Converting between wide to long (3 points)
+Import the reshaping_homework Rdata file. Look at the employment projections dataset. 
+```{r}
+load("../Data/reshaping_homework.RData")
+
+```
+
+Explore this dataset in the console and in the view tab. 
+
+Q: Is this dataset long or wide?  
+A: Wide 
+
+Use a pivot function to convert this dataset so that it is the opposite of what it is now (if it is wide, make it long, if it is long make it wide.) Save it as employment_projections_long or employment_projections_wide depending on which you have created. 
+```{r}
+employment_projections_long <- employment_projections_by_county %>% pivot_longer(cols=c(`1980`:`2000-2030`), names_to = "Year", values_to = "Population")
+```
+
+Now create one more subset called employment_projections_long or employment_projections_wide that uses the other pivot function to turn this back to its original format. 
+```{r}
+employment_projections_wide <- employment_projections_long %>% pivot_wider(names_from = "Year", values_from = "Population")
+
+```
+
+# Relational data (6 points)
+You have previously worked with the indianapolis use of force dataset. Now you are going to work with the same data, but in relation data format. 
+
+In the console and in the global environment, explore the officer_info, resident_info_and use_of_force_event datasets. 
+
+You may also want to run some group_by counts to help you answer the question below. 
+```{r}
+#View(use_of_force_event)
+#View(officer_info)
+#View(resident_info)
+
+# #use_of_force_event
+# use_of_force_event %>% group_by(eventIdentifier) %>% summarize(count = n()) %>% arrange(desc(count)) %>% head(5)
+# use_of_force_event %>% group_by(officerIdentifier) %>% summarize(count = n()) %>% arrange(desc(count)) %>% head(5)
+# use_of_force_event %>% group_by(eventIdentifier, officerIdentifier) %>% summarize(count = n()) %>% arrange(desc(count)) %>% head(5)
+# use_of_force_event %>% group_by(eventIdentifier, officerIdentifier, officerForceType) %>% summarize(count = n()) %>% arrange(desc(count)) %>% head(5)
+# 
+# #officer_info
+# officer_info %>% group_by(officerIdentifier) %>% summarize(count = n()) %>% arrange(desc(count)) %>% head(5)
+# officer_info %>% group_by(officerIdentifier, officerAge) %>% summarize(count = n()) %>% arrange(desc(count)) %>% head(5)
+# 
+# #resident_info
+# resident_info %>% group_by(eventIdentifier) %>% summarize(count = n()) %>% arrange(desc(count)) %>% head(5)
+# resident_info %>% group_by(eventIdentifier, residentAge) %>% summarize(count = n()) %>% arrange(desc(count)) %>% head(5)
+
+```
+
+Q: For each of these datasets, list any primary and foreign keys.  
+A: Composite Primary Keys: 1. officer_info: officerIdentifier, officerAge
+2. use_of_force_event: eventIdentifier, OfficerIdentifier, OfficerForceType
+3. resident_info: eventIdentifier, residentAge
+
+Foreign Keys: use_of_force_event: OfficerIdentifier 
+
+***The ideal primary keys would be the identifiers for each table, but they are not unique, thus composite primary keys are needed. These composite primary keys work with this data, but may not be the case if more data is added***
+
+Join a subset that includes all of the officers that are listed in the officer info table, and whether just these officers were injured or hospitalized in various encounters. Then for each officer, total the number times they were injured and hospitalized. Arrange by the highest count hospitalized and pipe into head(10).
+```{r}
+officer_info %>% group_by(officerIdentifier) %>% left_join(use_of_force_event, by= c("officerIdentifier" = "officerIdentifier")) %>% summarize(count = sum(officerHospitalized)) %>% arrange(desc(count)) %>% head(10)
+
+```
+
+Q: What is the identifier of the officer that has been hospitalized the most times?  
+A: e1d4e94d108c9aec62b5a159139fc5e2
+
+
+# Split (3 points)
+Using the use_of_force_event dataset, create two columns from the officerForceType variable. The first column should be forceType and should be divided into the categories "Less Lethal", "Lethal", "Physical", and "Canine". The second column should be "forceSubtype" and should include the detail of what was done.
+
+There are a couple of functions that could be used in this process, including str_replace, str_match, str_extract, separate, etc. There is not one right way to do this. 
+
+Pipe into head(n = 15)
+```{r}
+#use_of_force_event %>% mutate(forcetype = strsplit(as.character(officerForceType), "[-]")[[1]][1], forceSubtype = ) 
+
+use_of_force_event %>% separate(officerForceType, c("forceType", "forcesubtype"), sep="-") %>% head(15)
+
+```
+
+# Binding (3 points)
+The following datasets have information about animals. Use cbind and rbind to creat a single dataset called animal_facts with all of this information. Every animal should be an observation (row) and there should be 5 variables.
+```{r}
+animal_facts1 <- data.frame(animal_name = c("tiger", "trout", "orca"), 
+                            life_expectancy = c(9, 5, 50), 
+                            mammal = c(TRUE, FALSE, TRUE)) 
+
+animal_facts2 <- data.frame(animal_name = c("ostrich", "kangaroo", "rat snake"), 
+                            life_expectancy = c(35, 6, 7), 
+                            mammal = c(FALSE, TRUE, FALSE)) 
+
+animal_facts3 <- data.frame(animal_name1 = c("tiger", "trout", "orca"), 
+                            carnivore = c(TRUE, TRUE, TRUE), 
+                            ave_offspring = c(4, 900, 5)) 
+
+animal_facts4 <- data.frame(animal_name1 = c("ostrich", "kangaroo", "rat snake"), 
+                            carnivore = c(FALSE, FALSE, TRUE), 
+                            ave_offspring = c(8, 4, 20)) 
+
+animal_facts <- rbind(cbind(animal_facts1, animal_facts3), cbind(animal_facts2, animal_facts4)) %>% select(!animal_name1)
+
+```
+
+
+--End--
+
+# Optional feedback: 
+
+How hard was this assignment? Was it: too hard, too easy, or just right? 
+
+ANSWER: Too hard
+
+Approximately how long did this assignment take you? 
+
+ANSWER: 5 hours 
+

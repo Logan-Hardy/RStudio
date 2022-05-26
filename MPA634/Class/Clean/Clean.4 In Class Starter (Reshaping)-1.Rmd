@@ -1,0 +1,202 @@
+---
+title: "Clean.4 In Class Starter (Reshaping)"
+author: "Your Name"
+date: "2/4/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, 
+                      message = FALSE)
+library(tidyverse)
+```
+
+# Importing Data
+This time we are importing data in a different format than we have before. We're going to import an RData file. What is an RData file you might ask? It's a saved work space (global environment). 
+```{r}
+# Make sure the RData file is in the same folder as this markdown file. 
+load("../Data/reshaping_data.RData")
+```
+
+Q: Why use an RData file?  
+A: 
+
+# Pivoting 
+You may run into wide and long datasets. What are their characteristics? Which one is better? Let's look at two datasets and see their characteristics. 
+
+Click on the Adult Obesity County and the average ten year home price datasets to open them in new tabs. What do you notice about the layout of these datasets? 
+
+## Wide to long
+Let's convert the average home price dataset to be long format. Call the new dataset ave_ten_yr_home_price_ut_counties_long. Note: the old function to do this was gather(), but that has been replaced with the pivot_longer() function. 
+```{r}
+ave_ten_yr_home_price_ut_counties_long <-
+ave_ten_yr_home_price_ut_counties %>% 
+  pivot_longer(cols = c("1996-04":"2015-04"), 
+               names_to = "yearmo", 
+               values_to = "home_price")
+
+
+```
+
+## Long to wide
+We can also convert long data to wide. Call the new dataset Adult_Obesity_County_10_16_wide.
+```{r}
+Adult_Obesity_County_10_16_wide <-
+Adult_Obesity_County_10_16 %>% 
+  pivot_wider(names_from = Year, values_from = c(percent_obese))
+```
+
+Q: So which type is better, wide or long?  
+A:  
+
+# Joining
+The datasets patient_profile, first_camp_attended, health_camp_attended, and second_camp_attended all are relational, meaning these tables link to each other.  
+
+Explore these datasets in the global environment/console. How do they connect with each other? 
+
+## Keys
+Keys are the columns that connect tables together. It is a primary if it uniquely identifies every row in the table. It is a foreign key if it uniquely identifies every row in *another* table. (Therefore a variable can be both a primary and foreign key.)
+
+The Patient_ID and Health_Camp_ID variables are the keys in our dataset. For which tables are they primary and foreign keys? How could we know? 
+```{r}
+# Use dplyr functions to figure out whether these are primary or foreign keys in the four relational tables 
+patient_profile %>% group_by(Patient_ID) %>% summarize(count = n()) %>% arrange(desc(count))
+health_camp_detail %>% group_by(Health_Camp_ID) %>% summarize(count = n()) %>% arrange(desc(count))
+first_camp_attended %>% group_by(Patient_ID) %>% summarize(count = n()) %>% arrange(desc(count))
+first_camp_attended %>% group_by(Health_Camp_ID) %>% summarize(count = n()) %>% arrange(desc(count))
+second_camp_attended %>% group_by(Patient_ID) %>% summarize(count = n()) %>% arrange(desc(count))
+second_camp_attended %>% group_by(Health_Camp_ID) %>% summarize(count = n()) %>% arrange(desc(count))
+```
+
+We will use four types of joins: 
+
+- inner_join()
+- left_join()
+- right join()
+- full_join()
+
+Suppose we want to know the total amount every patient donated at their first camps as well as their income and education score. Only keep information for patients that went to first camps and relevant columns. 
+```{r}
+left_join(first_camp_attended %>% select(Patient_ID, Donation),
+patient_profile %>% select(Patient_ID, Income, Education_Score), by = c("Patient_ID" = "Patient_ID"))
+
+
+```
+
+Suppose we want to find out more about patients that are in "Technology" or the "Software Industry". Pull just that information from the patient_profile dataset. We want to know these patients health scores from the second camp. Keep only information for technology and software patients who went to the camp. 
+```{r}
+patient_profile %>% 
+  filter(Employer_Category %in% c("Technology", "Software Industry")) %>% 
+  inner_join(second_camp_attended %>% select(Patient_ID, `Health Score`), by = c("Patient_ID" = "Patient_ID"))
+
+```
+
+When did each camp in the second camp start and end? Join these datasets, keeping every row and column. 
+```{r}
+health_camp_detail %>% 
+  full_join(second_camp_attended)
+```
+
+There is one more join function that we sometimes need. Anti_join keeps only obsevations in one dataset that aren't in the other. Take a look: 
+```{r}
+anti_join(patient_profile, second_camp_attended)
+
+```
+
+There is also a base function called merge() that can perform the same operations as joins. 
+
+
+- inner_join(x, y)    is merge(x, y)
+- left_join(x, y)	    is merge(x, y, all.x = TRUE)
+- right_join(x, y)    is merge(x, y, all.y = TRUE)
+- full_join(x, y)     is merge(x, y, all.x = TRUE, all.y = TRUE)
+
+# Binding
+Sometimes we have datasets that we want to glue together because we know the rows or columns already line up perfectly. This could happen because we are assembling a dataset for the first time, because we have split a dataset and now want to put it back together, or for other reasons. 
+
+## cbind
+cbind() glues columns together. To do this successfully you need to make sure that the *rows* align in each dataset you're binding.
+
+Let's use the prison recidivism dataset again. This time we will artificially separate it into two subsets and then we can bind them back. 
+```{r}
+recid1 <- prison_recidivism %>% select(`Fiscal Year Released`:`Release Type...8`)
+recid2 <- prison_recidivism %>% select(`Part of Target Population`:`New Conviction Offense Sub Type`)
+
+# Bind these back together. 
+recid3 <- cbind(recid1, recid2)
+```
+
+
+## rbind 
+rbind() works the same way except it requires matching column names. To do this successfully you need to make sure that the *columns* align in each dataset you're binding.
+
+```{r}
+recid4 <- prison_recidivism[1:3000, ]
+recid5 <- prison_recidivism[3001:6718, ]
+
+# Bind these back together. 
+recid6 <- rbind(recid4, recid5)
+
+```
+
+Q: What happens if the rows or columns aren't the same number while binding?  
+A: 
+
+Q: What if one of the subsets has been reordered? Can you cbind them together?  
+A: 
+
+
+# Spliting and Unifying individual columns 
+Sometimes we may need to create more than one column out of a single column. Use head to look at the prison_recidivism dataset. Note the Race - Ethnicity column. I think it would be better to have this as two columns, Race and Ethnicity. Use the separate function to do so. 
+```{r} 
+prison_recidivism <- 
+prison_recidivism %>% separate(`Race - Ethnicity`, sep = " - ", into = c("Race", "Ethnicity"))
+```
+
+What about the convicting offence classification column? Can we make a separate column that just tells us whether the offense is a misdemeanor or felony (Charge), and another for the type (Classification)? Run a unique() function to see whether we can use separate. 
+```{r}
+unique(prison_recidivism$`Convicting Offense Classification`)
+
+
+```
+
+Q: Is there anything we can separate by that will let us make these new columns?  
+A: 
+
+There are a few ways we could go about problem solving this. 
+
+Q: What are some ideas you have? 
+
+
+```{r}
+prison_recidivism <- 
+prison_recidivism %>% mutate(Charge = ifelse(str_detect(`Convicting Offense Classification`,"Misdemeanor"), "Misdemeanor", ifelse(str_detect(`Convicting Offense Classification`, "Felony"), "Felony", "Other")), 
+                             Classificication = 
+                               str_replace_all(`Convicting Offense Classification`, c("Felony - " = "", 
+                                                                                     " Felony" = "", 
+                                                                                     " Misdemeanor" = ""))) %>% 
+  select(-`Convicting Offense Classification`)
+
+```
+
+
+Suppose we want to combine the Convicting Offense Type and Subtype into one column separated by - (I don't know why we would really need to do this but we could!) We will use the unite function 
+```{r}
+prison_recidivism <- 
+prison_recidivism %>% unite(col = "Convincting Offense Type - Subtype", c(`Convicting Offense Type`, `Convicting Offense Subtype`), sep = " - ", remove = TRUE)
+
+```
+
+
+# Practice: Problem solving
+Explore the Opioid_Prescription_Rates dataset in the view tab or in the console. What is wrong with this dataset? 
+
+Q: Is this dataset wide or long?  
+A: 
+
+There is not just one way to reshape this dataset. See if you can problem solve a way to make it into a normal long dataset. Call the new dataset Opioid_Prescription_Rates_Reshaped.
+```{r}
+
+
+```
+

@@ -1,0 +1,202 @@
+---
+title: "HW.Predict.5"
+author: "Logan Hardy"
+date: "3/30/2022"
+output: html_document
+---
+
+30 points (25 for this assignment, 5 for being on time)
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(fastDummies)
+library(caret)
+library(VIM)
+```
+
+# Import the income evaluation dataset with strings as factors. 
+Take a look at the data. We are going to use this dataset to predict if each individual makes more or less than $50,000 a year. 
+```{r}
+income_evaluation <- read_csv("../../Data/income_evaluation.csv") %>% mutate_if(is.character, as.factor)
+
+```
+
+# Load Functions (2 points)
+Instead of copying and pasting all the preprocessing functions from our finisher file into this document, we can load them all in from an R script. Use the source() function to load the preprocessing_functions.R file into the global environment. 
+```{r}
+source("preprocessing_functions.R")
+```
+
+# Step 1: Split data (2 points)
+Set the seed to 21 and split the dataset into an 80%, 20% split. 
+```{r}
+set.seed(21)
+sample <- trainIndex <- createDataPartition(income_evaluation$income, p = .8, 
+                                  list = FALSE, 
+                                  times = 1)
+train <- income_evaluation[sample,]
+test <- income_evaluation[-sample,]
+
+```
+
+Q: How many observations are in the train dataset?  
+A: 26,049
+
+## Step 2: Preprocess train data (4 points)
+Preprocess the train dataset using the same method as in the finisher file, but this time we are going to tweak some of the parameters in these functions. 
+
+When removing empty columns or columns with missing data, change the function so that if more than 1/2 of a column is NAs, it will be removed. (Note: this dataset actually doesn't have missing data so this will have no effect on the outcome, but this is just for practice.)
+
+Change the lump function so that a level has to appear more than 10% of the time to be kept. 
+
+Turn all the print results arguments to TRUE to see which variables, if any, were removed. 
+
+Change the cutoff for correlated variables to be .6
+```{r, warning=FALSE}
+train_processed <- train %>% 
+  remove_empty(cutoff = 0.5) %>% 
+  lump_factors(label = income, prop = 0.10) %>% 
+  make_dummies() %>% 
+  impute() %>% 
+  remove_near_zero(print_results = TRUE) %>% 
+  remove_linear_combos(print_results = TRUE) %>% 
+  remove_correlated(cutoff = 0.60, print_results = TRUE) %>% 
+  scale_data() %>% 
+  replace_label(train, income) %>% 
+  select(-`occupation_Other-service`)
+```
+
+Q: Which variables were removed in this process?  
+A: 4,5,9
+
+## Step 3: Preprocess test data (3 points)
+Use the preprocessing test code from the finisher file, but make the following edits: 
+Like in the train dataset, change the prop argument to match what you put in the prior code chunk. 
+
+If you get an error saying one or more variables are not found in this dataset (cannot be subset) remove these columns from the train_processed dataset, then rerun this code. 
+```{r, warning = FALSE}
+test_processed <- test %>% 
+  remove_empty(cutoff = 0.60) %>% 
+  lump_factors(label = income, prop = 0.10) %>% 
+  make_dummies() %>% 
+  impute() %>% 
+  remove_near_zero() %>% 
+  scale_data() %>% 
+  replace_label(test, income) %>% 
+  select(colnames(train_processed))
+```
+
+## Step 4: Train models (2 points)
+Use the classification_train function to create two models and compare their accuracy. (Note: If this is just taking too long to run on your computer, go ahead and just grab a sample of your train_processed data, like the first 500 rows, and use that to determine the best model.)
+```{r, warning = FALSE}
+# Linear Discriminant Analysis 
+model_lda <- classification_train(train_processed[1:1000,], "income", method = "lda")
+# Bayesian Generalized Linear Model
+model_bayesglm <- classification_train(train_processed[1:1000,], "income", method = "bayesglm")
+```
+
+Q: Based on your model results, which model would you choose? 
+A: lda, both models had the exact same accuracy but lda was faster 
+
+## Step 5: Evaluate performance (2 points)
+Now we want to check the accuracy with our test dataset.
+```{r}
+# Accuracy of lda model
+predicted <- predict(model_lda, test_processed)
+print(paste0("Accuracy: ", round(confusionMatrix(test_processed$income, predicted)[["overall"]][["Accuracy"]], 2)))
+
+# Accuracy of bayesglm model
+predicted <- predict(model_bayesglm, test_processed)
+print(paste0("Accuracy: ", round(confusionMatrix(test_processed$income, predicted)[["overall"]][["Accuracy"]], 2)))
+```
+
+Q: Based on these results, would you choose the same model you chose before?  
+A: No, based on these results, I would choose the bayesglm model instead as it had a higher accuracy
+
+## Step 6: Use model (2 points)
+Save your model as an rds file. 
+```{r}
+saveRDS(model_bayesglm, "model.rds")
+```
+
+# Regression
+Now we are going to run some models to predict the age of people based on these other factors. 
+
+## Step 1: Split data
+Just like with our classification model, the first step is to split the data into train and test. Since we have already done that, we can use the train/test data from before. 
+
+## Step 2: Preprocess train data (2 points)
+Use the default settings for our regression train_processed data from the finisher file 
+```{r, warning = FALSE}
+train_processed <- train %>% 
+  remove_empty() %>% 
+  lump_factors(label = age, remove_label = FALSE) %>% 
+  make_dummies() %>% 
+  impute() %>% 
+  remove_near_zero() %>% 
+  remove_linear_combos() %>% 
+  remove_correlated() %>% 
+  select(-`occupation_Transport-moving`, -`relationship_Other`)
+
+```
+
+## Step 3: Preprocess test data (2 points)
+If you get a warning saying some variables can't be subset, remove them from the train dataset, then run the test_processed functions from the finisher file.
+```{r, warning = FALSE}
+test_processed <- test %>% 
+  remove_empty() %>% 
+  lump_factors(label = pov_perc, remove_label = FALSE) %>% 
+  make_dummies() %>% 
+  impute() %>% 
+  select(colnames(train_processed))
+
+```
+
+## Step 4: Train models (2 points)
+Train two models. Again, feel free to use a subset if you run into long run times or errors. 
+```{r, warning=FALSE}
+# Least Angle Regression
+model_lars <- classification_train(train_processed[1:1000,], "age", method = "lars")
+# Multi-Layer Perceptron
+model_mlp <- classification_train(train_processed[1:1000,], "age", method = "mlp")
+
+```
+
+Q: Is it easier to predict age, or income with this data?  
+A: income
+
+Q: Which model would you choose?  
+A: lars
+
+
+## Step 5: Evaluate performance (2 points)
+Check the accuracy with the test data. 
+```{r}
+# Accuracy of lars model
+predicted <- predict(model_lars, test_processed)
+print(paste0("RMSE: ", round(RMSE(predicted, test_processed$age), 3), "   MAE: ", 
+round(MAE(predicted, test_processed$age), 3)))
+
+# Accuracy of mlp model
+predicted <- predict(model_mlp, test_processed)
+print(paste0("RMSE: ", round(RMSE(predicted, test_processed$age), 3), "   MAE: ", 
+round(MAE(predicted, test_processed$age), 3)))
+
+
+```
+
+Q: Does this change the model that you would use?  
+A: No, I would still go with the lars model as it has lower errors
+
+--End-- 
+
+# Optional feedback: 
+
+How hard was this assignment? Was it: too hard, too easy, or just right? 
+
+ANSWER: Just right
+
+Approximately how long did this assignment take you? 
+
+ANSWER: 2.5 hours

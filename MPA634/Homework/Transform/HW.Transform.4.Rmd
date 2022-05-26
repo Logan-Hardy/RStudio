@@ -1,0 +1,124 @@
+---
+title: "HW.Transform.4"
+author: "Logan Hardy"
+date: "1/31/2022"
+output: html_document
+---
+
+25 points (20 for this assignment, 5 for being on time)
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, 
+                      message = FALSE)
+library(tidyverse)
+```
+
+# For loops with vector (4 points)
+```{r}
+num_vec <- c(1:12)
+string_vec <- c("PIZZA", "STROGANOFF", "CAKE", "MALAI KOFTA")
+
+# Make a for loop that loops through num_vec and prints whether each value is greater than 7
+for (i in num_vec) {
+  if (i > 7) {
+    print(TRUE)
+  }
+  else {
+    print(FALSE)
+  }
+    
+}
+
+# Make a for loop that loops through string_vec and converts it to title case (so the first letter is capitalized) then prints the following "___ is my favorite food". So the first output should be "Pizza is my favorite food."
+for (i in string_vec) {
+  i = str_to_title(i)
+  print(paste0(i, ' is my favorite food'))
+}
+
+```
+
+# Seq_along (2 points)
+```{r}
+# Repeat the last loop, this time using seq_along. 
+for (i in seq_along(string_vec)) {
+  string_vec[[i]] = str_to_title(string_vec[[i]])
+  print(paste0(string_vec[[i]], ' is my favorite food'))
+}
+
+```
+
+# if else (4 points)
+```{r} 
+# Make a for loop with the string_vec that will check if the food is cake, then if it is have it print "This is dessert!". Then have it check if the food is Malai Kofta, in which case it should print "This is an Indian dish!" and if it is neither, print "This is comfort food."
+for (i in seq_along(string_vec)) {
+  if (str_to_lower(string_vec[[i]]) == 'cake') {
+    print('This is dessert!') 
+  } else if (str_to_lower(string_vec[[i]]) == 'malai kofta') {
+      print('This is an Indian dish!')
+    } else {
+      print('This is comfort food.')
+    }
+}
+
+```
+
+# Break and next (2 points)
+```{r}
+# Loop through the num_vec and have it print out every value besides 11 using the next operation. 
+for (i in num_vec) {
+  if (i == 11) {
+    next
+  }
+  
+  print(i)
+}
+
+# Loop through the same vector, this time break out of the loop after printing 6. 
+for (i in num_vec) {
+  if (i > 6) {
+    break
+  }
+  
+  print(i)
+}
+```
+
+# Creating a vector to fill (3 points)
+```{r}
+# Create an empty vector the same length as the string_vec. The loop through the string vec and fill the new vector with a lowercase version of each value within.  
+lower_case <- c()
+
+for (i in seq_along(string_vec)) {
+  lower_case[[i]] = str_to_lower(string_vec[[i]])
+}
+
+# Then print out the new vector. 
+print(lower_case)
+```
+
+# Looping through dataframe (5 points)
+```{r}
+# Loop through each of the columns in the diamonds dataframe. (It may help you to take a look at the dataframe by typing diamonds in your console) If it is numeric, print the median of that column. If it is ordinal, print "This is an ordinal column". (Hint: use is.numeric to test the class)
+for (col in colnames(diamonds)) {
+  if (is.numeric(diamonds[[col]])) {
+    print(median(diamonds[[col]]))
+  }
+  else {
+    print('This is an ordinal column')
+  }
+}
+
+```
+
+
+# Optional feedback: 
+
+How hard was this assignment? Was it: too hard, too easy, or just right? 
+
+ANSWER: Just right
+
+Approximately how long did this assignment take you? 
+
+ANSWER: 1.5 hours 
+
+

@@ -1,0 +1,476 @@
+---
+title: "Midterm Coding Section (Data Science)"
+author: "Logan Hardy"
+date: "03/09/2022"
+output: 
+  html_document:
+    toc: yes
+    toc_float: yes
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, 
+                      warning = FALSE, 
+                      message = FALSE)
+library(tidyverse)
+library(fastDummies)
+library(dplyr)
+library(ggthemes)
+
+
+
+theme_new <-  theme_fivethirtyeight(base_size=12#,base_family="Open Sans"
+                                    ) %+replace% theme(panel.grid.major.y = element_line(colour = "grey80", size = 0.25),  panel.grid.major.x = element_blank(), panel.background = element_rect(fill = "white"), plot.background = element_rect(fill = "white"), legend.background = element_rect(fill = "white")) 
+```
+
+70 points total
+
+# Instructions
+
+*This is a closed friend, open class material, open internet test.*
+You can get partial credit for code, so if you have code that isn't quite right or is throwing errors, you may choose to comment it out and move on. 
+
+# Import
+Import the ds_midterm rdata file. 
+```{r}
+load("ds_midterm.RData")
+```
+
+# R Practice
+
+## Loops (4 points)
+We will use the following vector as an example for our loop. Run the following code chunk without changing it.
+```{r}
+ages <- UScustoms_detention_children_2017_20$age_group[1:100]
+```
+
+Create a blank character vector the same length as the ages vector. 
+```{r}
+ages_new <- vector(mode="character", length=length(ages))
+
+```
+
+Make a loop that will go over the ages vector that will do the following:
+
+- If it encounters a NA, it will proceed to the next loop. (Note:value == NA *does not work in R*. That's why we have the is.na function.)
+- If the value is under 1 years old, it will put "infant" in the new vector.
+- If the value is between 1-5, it will put "younger child" in the new vector. 
+- If the value is between 6 and 11, it will put "older child" in the new vector. 
+- If the age is between 12 and 14, it will put "young teenager" in the new vector. 
+- If the age is between 15-18, it will put "older teenager" in the new vector. 
+- It will *not* print anything out. 
+```{r}
+# for loop to recode ages 
+for (i in seq_along(ages)) {
+  if (is.na(ages[[i]])) {
+    next
+  }
+  else if (ages[[i]] == "Under 1 year") {
+    ages_new[i] <- "infant"
+  }
+  else if (ages[[i]] == "1-2 years" | ages[[i]] == "3-5 years") {
+    ages_new[i] <- "younger child"
+  }
+  else if (ages[[i]] == "6-8 years" | ages[[i]] == "9-11 years") {
+    ages_new[i] <- "older child"
+  }
+  else if (ages[[i]] == "12-14 years") {
+    ages_new[i] <- "young teenager"
+  }
+  else if (ages[[i]] == "15-18 years") {
+    ages_new[i] <- "older teenager"
+  }
+}
+
+```
+
+Now print out just the first 10 value in the new vector. 
+```{r}
+print(head(ages_new, 10))
+
+```
+
+## Functions (6 points)
+Turn the prior loop into a function that accepts a vector of any length and *returns* a vector of that same length. Have the function produce an error that says "This is not a character vector" if the vector supplied isn't character. 
+
+Also add a parameter called add_NAs that will put an NA in the new vector if the parameter is TRUE and will skip that iteration (like in the prior loop) if the parameter is FALSE. Default this value to TRUE. 
+```{r}
+# function to recode age vectors 
+duplicate_vector <- function(vect, add_NAs=TRUE) {
+  #check to see if vector is character, raise error if not character 
+  # if (!is.character(vect)) {
+  #   stop("This is not a character vector")
+  # }
+  
+  # create new vector same size of the parameter 
+  new_vector <- vector(mode="character", length=length(vect))
+  
+  # for loop to recode age vector 
+  for (i in seq_along(vect)) {
+    if (is.na(vect[[i]])) {
+      if (add_NAs) {
+        new_vector[[i]] <- NA
+      }
+      else {
+        next
+      }
+      
+    }
+    else if (vect[[i]] == "Under 1 year") {
+      new_vector[i] <- "infant"
+    }
+    else if (vect[[i]] == "1-2 years" | vect[[i]] == "3-5 years") {
+      new_vector[i] <- "younger child"
+    }
+    else if (vect[[i]] == "6-8 years" | vect[[i]] == "9-11 years") {
+      new_vector[i] <- "older child"
+    }
+    else if (vect[[i]] == "12-14 years") {
+      new_vector[i] <- "young teenager"
+    }
+    else if (vect[[i]] == "15-18 years") {
+      new_vector[i] <- "older teenager"
+    }
+  }
+  
+  return(new_vector)
+}
+
+
+```
+
+Run the following vector through the function. Turn the add_NA parameter to TRUE. Then print out the new vector which was created. (You will have to save the output as an object to see it.)
+```{r}
+ages3 <- UScustoms_detention_children_2017_20$age_group[c(1,25:30)]
+
+ages3_simplified <- duplicate_vector(ages3, add_NAs=TRUE)
+(ages3_simplified)
+```
+
+Run the following vector through your function to make sure the error works, then comment out (#) the code so it doesn't run again. 
+```{r, eval = FALSE}
+hours <- UScustoms_detention_children_2017_20$hours_in_custody[14:20]
+
+duplicate_vector(hours)
+```
+
+# Data Cleaning and Wrangling
+
+The loaded dataset is a record of the children that were in US Customs and Border Patrol custody between 2017 and 2020.
+
+I recommend you look at the summary and structure of this dataset *in the console*. Then follow the steps below. 
+
+# Duplicate (1 point)
+Create a copy of the dataset called us_custom. 
+```{r}
+# create copy of the UScustoms_detention_children_2017_20 dataset 
+us_custom <- UScustoms_detention_children_2017_20
+
+```
+
+Once you have made a copy of the dataset, make all the changes below *on the us_custom dataset* (overwrite it) unless specifically told otherwise. 
+
+# NAs
+
+## Empty Rows (2 points)
+Remove all empty rows in us_custom. 
+```{r}
+# remove all empty rows 
+us_custom <- us_custom[rowSums(is.na(us_custom)) != ncol(us_custom),]
+
+```
+
+Q: How many rows were there before? How many are there now?  
+A:  Before: 583,814; After: 583,808
+
+## Empty Columns (2 points)
+Remove completely empty columns. 
+```{r}
+
+# find columns that are completely empty 
+empty_columns <- colSums(is.na(us_custom)) == nrow(us_custom)
+
+# remove empty columns 
+us_custom <- us_custom[, !empty_columns]
+
+```
+
+Q: How many columns were removed?  
+A: 1
+
+## Columns with single value (2 points)
+Remove all columns that are all a single value. 
+```{r}
+# remove columns that are all a single value 
+us_custom <- us_custom %>% select(where(~n_distinct(.) > 1))
+
+
+```
+
+Q: How many columns did this remove?  
+A: 1
+
+## Columns with cutoff (2 points)
+Remove all columns where more than a third of the data are NAs
+```{r}
+# Remove all columns where more than a third of the data are NAs
+us_custom <- us_custom %>% select_if(!colSums(is.na(us_custom)) > nrow(us_custom)/3)
+
+```
+
+Q: How many columns did that remove?  
+A: 2
+
+# Coercion
+
+## Age group variable (2 points)
+Turn the age_group variable into its proper data type. 
+```{r}
+# turn age_group to factor 
+us_custom <- us_custom %>% mutate(age_group = as.factor(age_group))
+
+```
+
+Q: Why did you pick this data type?  
+A: I picked this data type because the ages are grouped together as factors and should reflect that, rather than character 
+
+## Date Time Variables (6 points)
+The date_in columns and the date_out column are in pretty bad shape. Replace these *3* variables with *2* POSIXct variables that tell the full date and time when children were admitted and left custody. 
+```{r}
+# combine date_in_date and date_in_time convert all dates to POSIXct then remove the two old date_in columns 
+us_custom <- us_custom %>% mutate(date_in = as.POSIXct(paste(date_in_date, date_in_time), format="%A, %B %d, %Y %H:%M:%S"), date_out = as.POSIXct(date_out, format="%m/%d/%y %I:%M %p")) %>% select(!c(date_in_time, date_in_date))
+
+```
+
+Make a new column called in_year that has just the date_in year. 
+```{r}
+# create new column for date in year
+us_custom <- us_custom %>% mutate(in_year = format(date_in, "%Y"))
+
+```
+
+## Multiple columns (2 points)
+Coerce all remaining character columns into factors.
+```{r}
+# Coerce all remaining character columns into factors.
+us_custom <- us_custom %>% mutate_if(is.character, as.factor)
+
+```
+
+# Factors (8 points)
+## citizenship variable
+The citizenship variable is fairly clean, but we still want to make the following edits:  
+
+- There are two values that should be recoded as NA. 
+- We want to combine the two china levels.
+- There is one more country that has been listed under two variables that we should combine. 
+- After these steps have been taken we want to combine uncommon levels so that only the top ten countries remain. 
+```{r}
+# record unknowns to NAs 
+us_custom <- us_custom %>% mutate(citizenship = factor(citizenship, exclude = c("UNKNOWN", "NONE/UNKNOWN")))
+
+#Combine china and DRC levels 
+us_custom$citizenship <- fct_collapse(us_custom$citizenship, 
+             CHINA = c("CHINA (MAINLAND)", "CHINA, PEOPLES REPUBLIC OF"), 
+             "DEMOCRATIC REPUBLIC OF THE CONGO" = c("DEM REP OF THE CONGO", "DEMOCRATIC REPUBLIC OF CONGO (ZAIRE)"))
+
+# combine uncommon levels so we only have top 10 countries, plus other and NAs 
+us_custom$citizenship <- as.factor(us_custom$citizenship) %>% fct_lump(n = 10)
+
+```
+
+## gender variable
+Fix the gender variable so all common levels are combined and any levels that should be NA are.
+```{r}
+#combine common levels (male and female)
+us_custom$gender <- fct_collapse(us_custom$gender, 
+             Female = c("Female", "F - FEMALE"), 
+             Male = c("Male", "M - MALE"))
+
+#turn unknown into NA 
+us_custom <- us_custom %>% mutate(gender = factor(gender, exclude = c("U - UNKNOWN"))) 
+
+
+```
+
+# Outliers (6 points)
+Create a subset of the us_custom dataset that contains all the outliers in the hours_in_custody variable. Call this subset of outliers "customs_outliers". Use .001 and .999 as your cut off. 
+```{r}
+# Copy dataset 
+customs_outliers <- us_custom
+
+# Create lower and upper bounds of hours in custody 
+lower_bound <- quantile(customs_outliers$hours_in_custody, 0.001, na.rm = TRUE)
+upper_bound <- quantile(customs_outliers$hours_in_custody, 0.999, na.rm = TRUE)
+
+# Find indexes of outliers
+outlier_indexes <- which(customs_outliers$hours_in_custody < lower_bound | customs_outliers$hours_in_custody > upper_bound)
+
+# Create dataset with just outliers
+customs_outliers <- customs_outliers[outlier_indexes,] 
+
+```
+
+Use arrange and head to look at the highest and lowest 6 values in this subset. 
+```{r}
+# lowest 6 values 
+customs_outliers %>% arrange(hours_in_custody) %>% head()
+
+# highest 6 values 
+customs_outliers %>% arrange(desc(hours_in_custody)) %>% head()
+
+```
+
+Q: Do you think these values are extreme values or mistaken values? What is your rationale?  
+A: I think these values are mistaken values.  
+The highs are due to the date_out cell being NA which results in a high hours_in_custody because it looks as though they are still there.  This also means that these individuals have been there for years.  
+The lows have date_out before their date_in, thus resulting in a negative amount of time, which is impossible.  
+
+Replace the outlier values in your us_custom dataset (not in the outliers subset) with NAs.
+```{r}
+# replace outliers with NAs 
+us_custom[outlier_indexes, "hours_in_custody"] <- NA
+
+```
+
+Q: Now how many NAs are in the hours_in_custody column?  
+A: 1816
+
+# Branched Data (5 points)
+It may not look like it initially, but there is a branch in this data. Use summary (in the console!) to identify patterns of missing data. 
+
+Q: Which columns are included in the branch?  
+A: source, sector, border
+
+Q: As best as you can tell, what caused the branch?  
+A: source
+
+We are going to follow our protocol for branches. But remember, we need a unique identifier before we subset out the branch. We don't have that in this dataset, so we will have to artificially make one. The easiest way to do this is just make a variable with numbers in ascending order so that each row has a unique number. We could do this in several ways, one of which is use the row.names function. 
+
+Make a new identifier column called "id" in our us_custom dataset.
+```{r}
+# create id column 
+us_custom <- us_custom %>% mutate(id = row.names(source))
+
+```
+
+Then follow the protocol we discussed in class for removing branched data from the main dataset. Call your branched subset customs_branch
+```{r}
+customs_branch <- us_custom %>% filter(source=="OFO")
+
+# Save dataset without the subset. 
+us_custom <- us_custom %>% select(!border:source) 
+
+```
+
+# NA replacement (4 points)
+Let's assume our analysis cannot handle NAs. Replace the NAs in the us_custom factor columns with the mode, replace numeric NAs with the median, replace the date_in column with its mean, and filter out NAs in the date_out column. 
+```{r}
+# Find mode function  
+calc_mode <- function(x){
+  # List the distinct / unique values
+  distinct_values <- unique(x)
+  # Count the occurrence of each distinct value
+  distinct_tabulate <- tabulate(match(x, distinct_values))
+  # Return the value with the highest occurrence
+  distinct_values[which.max(distinct_tabulate)]
+}
+
+# Replace factor NAs with mode
+us_custom <- us_custom %>%
+  mutate(across(where(is.factor), ~replace_na(.x, calc_mode(.x))))
+
+# Replace numeric NAs with median 
+us_custom <- us_custom %>% 
+  mutate(across(where(is.numeric), ~replace_na(.x, median(.x, na.rm = TRUE))))
+
+# Replace date_in NAs with mean 
+us_custom <- us_custom %>% 
+  mutate(across(date_in, ~replace_na(.x, mean(.x, na.rm = TRUE)))) 
+
+# Filter out NAs in the date_out column
+us_custom <- us_custom %>% filter(!is.na(date_out))
+
+```
+
+# Numeric dataset (5 points)
+We are going to make a new subset called customs_numeric that has all of our data in numeric format. Follow these steps: 
+
+- Subset out any character columns or columns that should be character. 
+- Turn any logical, year, or ordered factors into numerical data 
+- Keep date-time variables as is
+- Make dummy columns out of the factor columns (Remove the first dummy and the original factor columns.)
+```{r}
+# copy dataset 
+customs_numeric <- us_custom
+
+# convert in_year to numeric and disregard character columns (there aren't any)
+customs_numeric <- customs_numeric %>% mutate(in_year = as.numeric(as.character(in_year))) %>% select(!is.character)
+
+# create dummies for factors 
+customs_numeric <- customs_numeric %>%  dummy_cols(remove_first_dummy = TRUE, ignore_na = TRUE, remove_selected_columns = TRUE)
+
+
+```
+
+Q: How many variables are in this new numeric dataset?  
+A: 21
+
+# Summarizing (4 points)
+Using the us_custom dataset, create a subset called customs_median_hours that shows the median number of hours children were detained for every year and citizenship country combination. 
+```{r}
+# create subset of median hours in custody grouped by year and citizenship 
+customs_median_hours <- us_custom %>% group_by(in_year, citizenship) %>% summarise(median_hours = median(hours_in_custody)) 
+
+```
+
+Q: Which country and year column had the highest median number of hours in custody?  
+A: BRAZIL 2020
+
+# Reshaping (4 points)
+Turn the customs_median_hours subset into a wide dataset by spreading out the year column. save this as customs_median_hours_wide. Your resulting dataset should be 11 rows by 5 columns.
+```{r}
+# reshape long to wide 
+customs_median_hours_wide <- customs_median_hours %>% pivot_wider(names_from = in_year, values_from = median_hours)
+
+```
+
+# Visualizing (5 points)
+Create a graph of your choosing from the visualization RMD that depicts the customs_median_hours data. (Not customs_median_hours_wide). It should have good labels, a custom or default theme, and show some sort of insight. (Feel free to filter or make any other changes to the data before plotting).
+```{r}
+# filter to just "BRAZIL", "MEXICO", "CUBA", "VENEZUELA", "ECUADOR" citizenships 
+customs_median_hours %>% filter(citizenship %in% c("BRAZIL", "MEXICO", "CUBA", "VENEZUELA", "ECUADOR")) %>%
+        # Citizenship Median Hours in Custody by year Scatterplot 
+        ggplot(aes(x = in_year, y = median_hours, color = citizenship)) + 
+        geom_point(alpha = 1) + 
+        ylim(0, 90) +
+        labs(title = "Citizenship Median Hours in Custody Scatterplot", 
+            subtitle = "Note how Brazil's increases dramatically compared to the others in 2020", 
+            x = "Year", 
+            y = "Median Hours in Custody") +
+        theme_new + 
+        theme(axis.title = element_text(size = 10, color = "grey40"), 
+              legend.position = "right", 
+              legend.direction = "vertical")
+
+```
+
+
+Q: What does this graph show?  
+A: This graph shows the median hours held in custody for these 5 countries to the south of the United States for each year (2017 - 2020).  This graph shows that on average, they increased from 2017 to 2018 and then decreased from 2018 - 2020.  Brazil's median hours in custody increases significantly in 2020, especially compared to the other citizenships.
+
+You're done! Submit an HTML to canvas and pat yourself on the back for having done some complex cleaning on a fairly messy dataset. 
+
+
+
+
+
+--End--
+
+How hard was this assignment? Was it: too hard, too easy, or just right? 
+
+ANSWER: Just Right
+
+Approximately how long did this assignment take you? 
+
+ANSWER: 18 hours
+
